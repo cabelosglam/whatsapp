@@ -56,7 +56,7 @@ def enviar():
         msg = client.messages.create(
             from_=FROM_WPP,
             to=f"whatsapp:+{telefone_normalizado}",
-            content_sid="COLOQUE_SEU_CONTENT_SID_AQUI",
+            content_sid="HX68731dfbb062cdbddb64de14629671cb",
             content_variables=vars_json
         )
 
