@@ -19,28 +19,48 @@ client = Client(ACCOUNT_SID, AUTH_TOKEN)
 def index():
     return render_template("form.html")
 
+def normalize_phone(phone):
+    # Mantém somente números
+    digits = ''.join(filter(str.isdigit, phone))
 
+    # Se tiver somente 10 ou 11 dígitos, assumimos Brasil
+    if len(digits) == 10:  # ex: 1199999999
+        return "55" + digits
+    if len(digits) == 11:  # ex: 11999999999
+        return "55" + digits
+
+    # Se já veio com 13 dígitos (55 + DDD + número)
+    if len(digits) == 12 or len(digits) == 13:
+        return digits
+
+    # Número inválido → retorna vazio (para não quebrar)
+    return ""
+    
 @app.route("/enviar", methods=["POST"])
 def enviar():
 
     nome = request.form.get("nome")
     telefone = request.form.get("telefone")
 
-    # Variáveis do template WhatsApp
-    # (Exemplo → personalize conforme seu template)
+    # Normaliza o número
+    telefone_normalizado = normalize_phone(telefone)
+
+    if telefone_normalizado == "":
+        return jsonify({"status": "erro", "detalhes": "Telefone inválido"}), 400
+
     vars_json = json.dumps({
         "nome": nome
     })
 
     try:
-        mensagem = client.messages.create(
+        msg = client.messages.create(
             from_=FROM_WPP,
-            to=f"whatsapp:+{telefone}",
-            content_sid="HX68731dfbb062cdbddb64de14629671cb",
+            to=f"whatsapp:+{telefone_normalizado}",
+            content_sid="COLOQUE_SEU_CONTENT_SID_AQUI",
             content_variables=vars_json
         )
 
-        return jsonify({"status": "ok", "sid": mensagem.sid})
+        return jsonify({"status": "ok", "sid": msg.sid})
 
     except Exception as e:
         return jsonify({"status": "erro", "detalhes": str(e)}), 500
