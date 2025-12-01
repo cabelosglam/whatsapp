@@ -8,11 +8,11 @@ load_dotenv()
 app = Flask(__name__)
 
 # Credenciais
-TWILIO_SID = os.getenv("TWILIO_SID")
-TWILIO_TOKEN = os.getenv("TWILIO_TOKEN")
+ACCOUNT_SID = os.getenv("ACCOUNT_SID")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 FROM_WPP = os.getenv("FROM_WPP")  # "whatsapp:+14155238886"
 
-client = Client(TWILIO_SID, TWILIO_TOKEN)
+client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
 
 @app.route("/")
