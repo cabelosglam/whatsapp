@@ -1,86 +1,50 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <title>Formulário WhatsApp Automático</title>
+from flask import Flask, render_template, request, jsonify
+from twilio.rest import Client
+from dotenv import load_dotenv
+import os, json
 
-    <style>
-        body {
-            font-family: Arial;
-            background: #f3f3f3;
-            padding: 40px;
-        }
-        .box {
-            background: white;
-            padding: 25px;
-            max-width: 420px;
-            margin: auto;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,.1);
-        }
-        input {
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-        button {
-            margin-top: 20px;
-            width: 100%;
-            padding: 12px;
-            background: #00c853;
-            border: none;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        button:hover {
-            background: #00a846;
-        }
-        #resultado {
-            margin-top: 15px;
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
+load_dotenv()
 
-<div class="box">
-    <h2>Receba informações no WhatsApp</h2>
+app = Flask(__name__)
 
-    <form id="form">
-        <input type="text" name="nome" placeholder="Seu nome" required>
-        <input type="text" name="telefone" placeholder="DDD + Número (ex: 5511999999999)" required>
+# Credenciais
+TWILIO_SID = os.getenv("TWILIO_SID")
+TWILIO_TOKEN = os.getenv("TWILIO_TOKEN")
+FROM_WPP = os.getenv("FROM_WPP")  # "whatsapp:+14155238886"
 
-        <button type="submit">Enviar</button>
-    </form>
+client = Client(TWILIO_SID, TWILIO_TOKEN)
 
-    <p id="resultado"></p>
-</div>
 
-<script>
-document.getElementById("form").addEventListener("submit", async (e) => {
-    e.preventDefault();
+@app.route("/")
+def index():
+    return render_template("form.html")
 
-    const formData = new FormData(e.target);
 
-    const r = await fetch("/enviar", {
-        method: "POST",
-        body: formData
-    });
+@app.route("/enviar", methods=["POST"])
+def enviar():
 
-    const resposta = await r.json();
+    nome = request.form.get("nome")
+    telefone = request.form.get("telefone")
 
-    if (resposta.status === "ok") {
-        document.getElementById("resultado").innerHTML =
-            "Mensagem enviada com sucesso! ✔️";
-    } else {
-        document.getElementById("resultado").innerHTML =
-            "Erro: " + resposta.detalhes;
-    }
-});
-</script>
+    # Variáveis do template WhatsApp
+    # (Exemplo → personalize conforme seu template)
+    vars_json = json.dumps({
+        "nome": nome
+    })
 
-</body>
-</html>
+    try:
+        mensagem = client.messages.create(
+            from_=FROM_WPP,
+            to=f"whatsapp:+{telefone}",
+            content_sid="COLOQUE_SEU_CONTENT_SID_AQUI",
+            content_variables=vars_json
+        )
+
+        return jsonify({"status": "ok", "sid": mensagem.sid})
+
+    except Exception as e:
+        return jsonify({"status": "erro", "detalhes": str(e)}), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
