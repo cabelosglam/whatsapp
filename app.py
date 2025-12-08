@@ -799,13 +799,3 @@ def marcar_comprou(numero):
 # -------------------------------------------------------------
 # INICIAR SERVIDOR
 # -------------------------------------------------------------
-if __name__ == "__main__":
-    # Iniciar monitoramento do Google Sheets em thread paralela
-    threading.Thread(
-        target=monitorar_novos_leads,
-        args=(processar_novo_lead_sheet,),
-        daemon=True
-    ).start()
-
-    print("[INFO] Monitoramento Google Sheets iniciado.")
-    app.run(debug=True)
