@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, jsonify, redirect
 from twilio.rest import Client
 from dotenv import load_dotenv
 import os, json, time, threading
-from google_sheets import monitorar_novos_leads
+# DESATIVE PARA O HEROKU
+# from google_sheets import monitorar_novos_leads
 import threading
 import json
 from datetime import datetime
@@ -799,3 +800,14 @@ def marcar_comprou(numero):
 # -------------------------------------------------------------
 # INICIAR SERVIDOR
 # -------------------------------------------------------------
+#if __name__ == "__main__":
+    # Iniciar monitoramento do Google Sheets em thread paralela
+    # FEATURE DESATIVADA NO HEROKU
+    # threading.Thread(
+    #     target=monitorar_novos_leads,
+    #     args=(processar_novo_lead_sheet,),
+    #     daemon=True
+    # ).start()
+
+    #print("[INFO] Monitoramento Google Sheets iniciado.")
+    #app.run(debug=True)     
