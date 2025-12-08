@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% set active = "conversas_lista" %}
+
+{% block content %}
+
+<h1 class="titulo">💬 Conversas</h1>
+<p class="subtitulo">Lista de leads ativos que possuem mensagens registradas.</p>
+
+{% if leads|length == 0 %}
+    <p>Nenhuma conversa iniciada ainda.</p>
+
+{% else %}
+
+<table class="tabela">
+    <thead>
+        <tr>
+            <th>Número</th>
+            <th>Etapa</th>
+            <th style="text-align:center;">Ações</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for numero, dados in leads.items() %}
+        <tr>
+            <td>{{ numero }}</td>
+            <td>
+                <span class="badge etapa-{{ dados.stage | replace(' ', '_') | lower }}">
+                    {{ dados.stage }}
+                </span>
+            </td>
+
+            <td class="acoes">
+                <!-- Abrir conversa -->
+                <a class="btn-ver" href="/conversas/{{ numero }}">💬 Abrir conversa</a>
+
+                <!-- Excluir tudo -->
+                <form action="/delete-lead/{{ numero }}" method="POST"
+                    onsubmit="return confirm('Excluir esta conversa e o lead por completo?')"
+                    style="display:inline;">
+                    <button class="btn-delete">🗑 Excluir</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+
+</table>
+{% if request.args.get("deleted") == "ok" %}
+<div class="alerta-sucesso">
+    ✔ Lead excluído com sucesso.
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

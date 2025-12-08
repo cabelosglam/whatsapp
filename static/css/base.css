@@ -1,0 +1,70 @@
+/* =========================== */
+/* RESET E BASE */
+/* =========================== */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    background: #f6f6f9;
+    color: #333;
+}
+
+/* =========================== */
+/* SIDEBAR LATERAL */
+/* =========================== */
+.sidebar {
+    width: 240px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #ffcccc;
+    padding: 25px 20px;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+}
+
+.sidebar .logo {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 35px;
+}
+
+/* =========================== */
+/* LINKS DO MENU */
+/* =========================== */
+.menu-item {
+    display: block;
+    font-size: 16px;
+    color: #444;
+    padding: 12px 14px;
+    text-decoration: none;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    transition: 0.2s;
+}
+
+.menu-item:hover {
+    background: #ffe3f1;
+    color: #d63384;
+}
+
+.menu-item.active {
+    background: #fbd7e8;
+    color: #d63384;
+    font-weight: 600;
+}
+
+/* Remove sublinhado */
+.menu-item:link,
+.menu-item:visited {
+    text-decoration: none !important;
+}
+
+/* =========================== */
+/* ÁREA DO CONTEÚDO */
+/* =========================== */
+.main-content {
+    margin-left: 260px;
+    padding: 30px 40px;
+}

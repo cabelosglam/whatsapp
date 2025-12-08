@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set active = "form" %}
+
+{% block content %}
+
+<div class="form-wrapper">
+    <h2>Receba informações no WhatsApp</h2>
+
+    <form id="form">
+        <input type="text" name="nome" placeholder="Seu nome" required>
+        <input type="tel" name="telefone" minlength="10" maxlength="14" placeholder="Seu WhatsApp" required>
+
+        <button type="submit">Enviar</button>
+    </form>
+
+    <p id="resultado"></p>
+</div>
+
+<script>
+document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+
+    const r = await fetch("/enviar", {
+        method: "POST",
+        body: formData
+    });
+
+    const resposta = await r.json();
+
+    if (resposta.status === "ok") {
+        document.getElementById("resultado").innerHTML =
+            "✔️ Mensagem enviada com sucesso!";
+    } else {
+        document.getElementById("resultado").innerHTML =
+            "❌ Erro: " + resposta.erro;
+    }
+});
+</script>
+
+{% endblock %}

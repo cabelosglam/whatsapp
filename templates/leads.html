@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% set active = "leads" %}
+
+{% block content %}
+
+<h1 class="titulo">📱 Painel de Leads</h1>
+<p class="subtitulo">Acompanhe o progresso de cada lead no fluxo Glam.</p>
+
+{% if leads|length == 0 %}
+    <p>Nenhum lead encontrado ainda.</p>
+{% else %}
+
+<table class="tabela">
+    <thead>
+        <tr>
+            <th>Número</th>
+            <th>Etapa</th>
+            <th style="text-align:center;">Ações</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for numero, lead in leads.items() %}
+        <tr class="{% if lead.stage == 'comprou' %}lead-comprou{% endif %}">
+            
+            <!-- Número -->
+            <td>{{ numero }}</td>
+
+            <!-- Etapa com badge -->
+            <td>
+                {% if lead.stage == "comprou" %}
+                    <span class="badge etapa-checkout_enviado" style="background:#22c55e;">
+                        ✔ Comprou
+                    </span>
+                {% else %}
+                    <span class="badge etapa-{{ lead.stage }}">
+                        {{ lead.stage | replace("_", " ") }}
+                    </span>
+                {% endif %}
+            </td>
+
+            <!-- Ações -->
+            <td class="acoes">
+
+                <!-- Ver conversa -->
+                <a class="btn-ver" href="/conversas/{{ numero }}">💬 Ver conversa</a>
+
+                <!-- Botão COMPROU (não aparece depois que marcar) -->
+                {% if lead.stage != "comprou" %}
+                <form action="/marcar-comprou/{{ numero }}" method="POST" style="display:inline;">
+                    <button class="btn-ok">💸 Comprou</button>
+                </form>
+                {% endif %}
+
+                <!-- Remover lead -->
+                <form action="/delete-lead/{{ numero }}" method="POST" 
+                    onsubmit="return confirm('Tem certeza que deseja excluir este lead e toda a conversa?')"
+                    style="display:inline;">
+                    <button class="btn-delete">🗑 Excluir</button>
+                </form>
+
+            </td>
+
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if request.args.get("deleted") == "ok" %}
+<div class="alerta-sucesso">
+    ✔ Lead excluído com sucesso.
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

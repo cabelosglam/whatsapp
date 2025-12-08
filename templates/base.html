@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title or "GlamBot Dashboard" }}</title>
+
+    <!-- CSS base do layout -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+
+    <!-- CSS específico por página -->
+    {% if active == "dashboard" %}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    {% elif active == "leads" %}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/leads.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/badges.css') }}">
+
+    {% elif active == "conversas" %}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/conversas.css') }}">
+    {% elif active == "logs" %}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/logs.css') }}">
+    {% elif active == "form" %}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}">
+    {% elif active == "conversas_lista" %}
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/conversas_lista.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/badges.css') }}">
+
+    {% endif %}
+</head>
+
+<body>
+
+    <!-- SIDEBAR LATERAL FIXA -->
+    <div class="sidebar">
+        <h2 class="logo">💗 GlamBot</h2>
+
+        <a href="/form" 
+           class="menu-item {% if active=='form' %}active{% endif %}">
+            📝 Envio manual
+        </a>
+
+        <a href="/dashboard" 
+           class="menu-item {% if active=='dashboard' %}active{% endif %}">
+            📊 Dashboard
+        </a>
+
+        <a href="/leads" 
+           class="menu-item {% if active=='leads' %}active{% endif %}">
+            📱 Leads
+        </a>
+
+        <a href="/conversas" 
+           class="menu-item {% if active=='conversas' %}active{% endif %}">
+            💬 Conversas
+        </a>
+
+        <a href="/logs" 
+           class="menu-item {% if active=='logs' %}active{% endif %}">
+            📝 Logs
+        </a>
+    </div>
+
+    <!-- ÁREA PRINCIPAL DO CONTEÚDO -->
+    <div class="main-content">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+</body>
+</html>

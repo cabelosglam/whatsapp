@@ -1,0 +1,82 @@
+/* ============================================
+   FORMULÁRIO GLAM – Estilo Apple + Glam Blush
+   ============================================ */
+
+.form-wrapper {
+    max-width: 450px;
+    margin: 40px auto;
+    padding: 35px;
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0px 6px 22px rgba(0,0,0,0.08);
+    border: 1px solid #f1e6eb;
+    text-align: center;
+}
+
+/* TÍTULO */
+.form-wrapper h2 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #d63384;
+    margin-bottom: 18px;
+}
+
+/* INPUTS */
+.form-wrapper input {
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    font-size: 16px;
+    transition: 0.25s ease;
+    background: #fafafa;
+}
+
+/* Animação ao focar */
+.form-wrapper input:focus {
+    border-color: #d63384;
+    box-shadow: 0 0 0 4px rgba(214,51,132,0.15);
+    background: #fff;
+    outline: none;
+}
+
+/* BOTÃO */
+.form-wrapper button {
+    width: 100%;
+    padding: 14px;
+    background: #d63384;
+    border: none;
+    color: white;
+    border-radius: 12px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.25s ease;
+}
+
+/* Hover suave */
+.form-wrapper button:hover {
+    background: #b62370;
+    transform: translateY(-1px);
+}
+
+/* Mensagem de retorno */
+#resultado {
+    margin-top: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #444;
+}
+
+/* MOBILE */
+@media (max-width: 600px) {
+    .form-wrapper {
+        margin: 20px;
+        padding: 25px;
+    }
+
+    .form-wrapper h2 {
+        font-size: 22px;
+    }
+}

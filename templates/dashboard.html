@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% set active = "dashboard" %}
+
+{% block content %}
+
+<h1 class="titulo">📊 Painel Glam — Funil & Métricas</h1>
+<p class="subtitulo">Acompanhe o comportamento dos leads no fluxo Glam</p>
+
+<!-- ======================= MÉTRICAS PRINCIPAIS ======================= -->
+<div class="dashboard-cards">
+    <div class="card metric">
+        <h2>👤 Leads do Dia</h2>
+        <p class="numero">{{ metrics.dia }}</p>
+    </div>
+
+    <div class="card metric">
+        <h2>🗓 Leads do Mês</h2>
+        <p class="numero">{{ metrics.mes }}</p>
+    </div>
+
+    <div class="card metric">
+        <h2>📈 Total de Leads</h2>
+        <p class="numero">{{ metrics.total }}</p>
+    </div>
+</div>
+
+<!-- ======================= CONVERSÕES ======================= -->
+<h2 class="titulo" style="margin-top: 40px;">📌 Conversão por Etapa</h2>
+
+<div class="dashboard-cards">
+    <div class="card metric"><h2>Start</h2><p class="numero">{{ conversao.para_start }}%</p></div>
+    <div class="card metric"><h2>Nutrição</h2><p class="numero">{{ conversao.para_nutricao }}%</p></div>
+    <div class="card metric"><h2>Case</h2><p class="numero">{{ conversao.para_case }}%</p></div>
+    <div class="card metric"><h2>Projeção</h2><p class="numero">{{ conversao.para_projecao }}%</p></div>
+    <div class="card metric"><h2>Checkout</h2><p class="numero">{{ conversao.para_checkout }}%</p></div>
+        <!-- NOVO: Conversão para compra -->
+    <div class="card metric" style="border:2px solid #4ade80;">
+        <h2>Comprou</h2>
+        <p class="numero" style="color:#22c55e;">{{ conversao.para_comprou }}%</p>
+    </div>
+</div>
+
+<!-- ======================= FUNIL VISUAL ======================= -->
+<h2 class="titulo" style="margin-top: 40px;">🔄 Funil Glam</h2>
+
+<div class="funnel-container">
+    {% for etapa, qtd in metrics.etapas.items() %}
+        <div class="funnel-card">
+            <span class="funnel-etapa">{{ etapa | replace("_", " ") }}</span>
+            <span class="funnel-qtd">{{ qtd }}</span>
+        </div>
+    {% endfor %}
+</div>
+
+
+<!-- ======================= GRÁFICOS ======================= -->
+<h2 class="titulo" style="margin-top: 40px;">📊 Distribuição por Etapas</h2>
+
+<div class="charts">
+    <div class="chart-card"><canvas id="graficoBarra"></canvas></div>
+    <div class="chart-card"><canvas id="graficoPizza"></canvas></div>
+</div>
+
+<!-- SCRIPTS CHART.JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const etapas = {{ metrics.etapas_nomes | tojson }};
+const valores = {{ metrics.etapas_valores | tojson }};
+</script>
+
+<script>
+/* ======================== GRÁFICO DE BARRAS ======================== */
+new Chart(document.getElementById('graficoBarra'), {
+    type: 'bar',
+    data: {
+        labels: etapas,
+        datasets: [{
+            label: 'Leads por etapa',
+            data: valores,
+            backgroundColor: '#d63384',
+            borderRadius: 8
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: { x: { beginAtZero: true } }
+    }
+});
+
+/* ======================== GRÁFICO DE PIZZA ======================== */
+new Chart(document.getElementById('graficoPizza'), {
+    type: 'doughnut',
+    data: {
+        labels: etapas,
+        datasets: [{
+            data: valores,
+            backgroundColor: [
+                '#d63384','#b42372','#8e1c5b',
+                '#eec7d9','#f6ddea','#ddd'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '55%'
+    }
+});
+</script>
+
+{% endblock %}

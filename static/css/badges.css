@@ -1,0 +1,55 @@
+/* =======================================
+   BADGES — Etapas do Funil Glam
+   Apple + Dior + Glam aesthetic ✨
+   ======================================= */
+
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    text-transform: capitalize;
+    letter-spacing: 0.2px;
+    transition: 0.15s ease;
+}
+
+/* Hover sutíl premium */
+.badge:hover {
+    opacity: 0.88;
+}
+
+/* ==========================
+   Cores de cada etapa
+   ========================== */
+
+/* Início */
+.etapa-start {
+    background: #7c3aed; /* Roxo Glam */
+}
+
+/* Respostas inesperadas / nenhum estágio */
+.etapa-desconhecido {
+    background: #9ca3af; /* Cinza neutro */
+}
+
+/* Nutrição */
+.etapa-nutricao {
+    background: #ec4899; /* Rosa Glam */
+}
+
+/* Case de sucesso */
+.etapa-case {
+    background: #0ea5e9; /* Azul Tiffany suave */
+}
+
+/* Projeção */
+.etapa-projecao {
+    background: #14b8a6; /* Verde água */
+}
+
+/* Checkout enviado */
+.etapa-checkout {
+    background: #22c55e; /* Verde sucesso */
+}

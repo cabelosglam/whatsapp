@@ -1,0 +1,29 @@
+.log-card {
+    background: white;
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid #eee;
+    margin-bottom: 15px;
+}
+
+.label {
+    font-weight: 600;
+}
+
+.valor {
+    color: #444;
+}
+
+.etapa-tag {
+    background: #ece9ff;
+    padding: 5px 12px;
+    border-radius: 8px;
+}
+
+.tag.inbound {
+    color: #0066cc;
+}
+
+.tag.outbound {
+    color: #d63384;
+}

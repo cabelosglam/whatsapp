@@ -1,0 +1,171 @@
+.tabela {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.tabela th, .tabela td {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    text-align: center;
+}
+
+.tabela tr:hover {
+    background: #fafafa;
+}
+
+/* Botão ver conversa */
+.btn-ver {
+    background: #7c3aed;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.btn-ver:hover {
+    background: #5b21b6;
+}
+
+/* Botão excluir */
+.btn-delete {
+    background: #ff4d4d;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-delete:hover {
+    background: #d93636;
+}
+
+/* Ações alinhadas */
+.acoes {
+    text-align: center;
+}
+
+/* ==========================
+   BADGES DE ETAPAS (Glam)
+   ========================== */
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    text-transform: capitalize;
+}
+
+/* Cores individuais */
+.etapa-start {
+    background: #7c3aed;   /* Roxo Glam */
+}
+
+.etapa-desconhecido {
+    background: #9ca3af;   /* Cinza neutro */
+}
+
+.etapa-nutricao {
+    background: #ec4899;   /* Rosa Glam */
+}
+
+.etapa-case {
+    background: #0ea5e9;   /* Azul suave */
+}
+
+.etapa-projecao {
+    background: #14b8a6;   /* Verde água */
+}
+
+.etapa-antes_checkout {
+    background: #f59e0b;   /* Dourado/âmbar */
+}
+
+.etapa-formacao_glam {
+    background: #a855f7;   /* Roxo médio */
+}
+
+.etapa-checkout_enviado {
+    background: #22c55e;   /* Verde sucesso */
+}
+
+/* Hover leve para ficar premium */
+.badge:hover {
+    opacity: 0.9;
+}
+.btn-ok {
+    background: #4ade80;
+    color: #064e3b;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-ok:hover {
+    background: #22c55e;
+}
+/* Quando o lead comprou – pinta toda linha de verde suave */
+.lead-comprou {
+    background: #d1fae5 !important;      /* verde pastel */
+    border-left: 6px solid #10b981;       /* verde esmeralda */
+}
+
+.lead-comprou td {
+    color: #065f46; /* verde escuro para o texto */
+    font-weight: 600;
+}
+
+/* Botão de marcar compra */
+.btn-ok {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-ok:hover {
+    background: #059669;
+}
+/* Linha verde quando comprou */
+.lead-comprou {
+    background: #d1f2d6 !important;
+}
+
+/* Selo especial do comprador */
+.tag-comprou {
+    background: #3cb371;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 13px;
+    display: inline-block;
+}
+
+/* Botão marcar como comprou */
+.btn-ok {
+    background: #3cb371;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+.btn-ok:hover {
+    background: #319a60;
+}

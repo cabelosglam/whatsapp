@@ -1,0 +1,366 @@
+[
+    {
+        "timestamp": 1764868451.6254344,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "sim",
+        "stage": "desconhecido"
+    },
+    {
+        "timestamp": 1764868458.8019207,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "sim",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1764868650.83608,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "trabalho sim",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1764868672.8029418,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "sim",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1764868715.9164982,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "sim",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1764868721.6764636,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "sim",
+        "stage": "antes_checkout"
+    },
+    {
+        "timestamp": 1764868727.9142559,
+        "from": "whatsapp:+556281545166",
+        "number": "whatsapp:+556281545166",
+        "body": "sim",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765160017.017265,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "desconhecido"
+    },
+    {
+        "timestamp": 1765160017.017265,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te contar algo que quase ninguém percebe:",
+        "stage": "start"
+    },
+    {
+        "timestamp": 1765160025.6945293,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765160025.6945293,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "CASE REAL — A Virada de Chave Glam",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765160033.2013068,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765160033.2013068,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te revelar um ponto que, quando as profissionais entendem, a conversa muda de tom.",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765160069.0905526,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765160069.0905526,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Módulos",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765160082.5380116,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765160082.5380116,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Link pagamento",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765160956.4023144,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "não",
+        "stage": "desconhecido"
+    },
+    {
+        "timestamp": 1765160956.4047885,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Sem problemas! Se um dia quiser aprender profissionalmente, é só me chamar 💖Quer mesmo assim conhecer como funciona o método Glam?",
+        "stage": "start"
+    },
+    {
+        "timestamp": 1765160964.1801193,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "busca"
+    },
+    {
+        "timestamp": 1765160964.1801193,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Retorno",
+        "stage": "busca"
+    },
+    {
+        "timestamp": 1765161248.0356734,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "desconhecido"
+    },
+    {
+        "timestamp": 1765161248.0388494,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te contar algo que quase ninguém percebe:",
+        "stage": "start"
+    },
+    {
+        "timestamp": 1765161261.0378172,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765161261.0391145,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "CASE REAL — A Virada de Chave Glam",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765161272.951544,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765161272.9540923,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te revelar um ponto que, quando as profissionais entendem, a conversa muda de tom.",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765161299.9456837,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765161299.9488287,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Módulos",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765161310.7060235,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765161310.7081153,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Link pagamento",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765161968.8355913,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "desconhecido"
+    },
+    {
+        "timestamp": 1765161968.839219,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te contar algo que quase ninguém percebe:",
+        "stage": "start"
+    },
+    {
+        "timestamp": 1765161979.8008983,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765161979.802769,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "CASE REAL — A Virada de Chave Glam",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765161994.710289,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765161994.7134266,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te revelar um ponto que, quando as profissionais entendem, a conversa muda de tom.",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765162112.9221535,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765162112.9249701,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Módulos",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765162226.0648544,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765162226.0669582,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Link pagamento",
+        "stage": "formacao_glam"
+    },
+    {
+        "timestamp": 1765162320.3356404,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "desconhecido"
+    },
+    {
+        "timestamp": 1765162320.3426902,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te contar algo que quase ninguém percebe:",
+        "stage": "start"
+    },
+    {
+        "timestamp": 1765162333.1889203,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765162333.1898353,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "CASE REAL — A Virada de Chave Glam",
+        "stage": "nutricao"
+    },
+    {
+        "timestamp": 1765162343.9676514,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765162343.971677,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Deixa eu te revelar um ponto que, quando as profissionais entendem, a conversa muda de tom.",
+        "stage": "case"
+    },
+    {
+        "timestamp": 1765162350.1867125,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765162350.189768,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Módulos",
+        "stage": "projecao"
+    },
+    {
+        "timestamp": 1765162358.3961165,
+        "lead": "whatsapp:+556281545166",
+        "direction": "inbound",
+        "body": "sim",
+        "stage": "checkout"
+    },
+    {
+        "timestamp": 1765162358.3985445,
+        "lead": "whatsapp:+556281545166",
+        "direction": "outbound",
+        "body": "Link pagamento",
+        "stage": "checkout"
+    },
+    {
+        "timestamp": 1765163152.3844745,
+        "lead": "whatsapp:+556281545166",
+        "direction": "system",
+        "body": "Lead marcado como COMPROU manualmente",
+        "stage": "comprou"
+    }
+]

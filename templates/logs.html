@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set active = "logs" %}
+
+{% block content %}
+
+<h1 class="titulo">📄 Logs de Conversas</h1>
+<p class="subtitulo">Registro completo de todas as mensagens enviadas e recebidas no funil Glam.</p>
+
+<div class="logs-container">
+
+    {% if logs|length == 0 %}
+        <p>Nenhum log registrado ainda.</p>
+    {% endif %}
+
+    {% for log in logs %}
+    <div class="log-card">
+
+        <div class="linha">
+            <span class="label">📱 Número:</span>
+            <span class="valor">{{ log.lead }}</span>
+        </div>
+
+        <div class="linha">
+            <span class="label">💬 Mensagem:</span>
+            <span class="valor">{{ log.body }}</span>
+        </div>
+
+        <div class="linha">
+            <span class="label">🔄 Etapa:</span>
+            <span class="etapa-tag">{{ log.stage }}</span>
+        </div>
+
+        <div class="linha">
+            <span class="label">📡 Direção:</span>
+            {% if log.direction == "inbound" %}
+                <span class="tag inbound">Recebida</span>
+            {% else %}
+                <span class="tag outbound">Enviada</span>
+            {% endif %}
+        </div>
+
+        <p class="tempo">{{ log.time }}</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
