@@ -15,7 +15,7 @@ client = Client(ACCOUNT_SID, AUTH_TOKEN)
 # ===============================
 # BUSCAR NOVOS LEADS NA PLANILHA
 # ===============================
-novos = buscar_novos_leads()
+novos = monitorar_novos_leads()
 
 if not novos:
     print("[SHEET] Nenhum novo lead encontrado.")
