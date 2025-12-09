@@ -556,7 +556,7 @@ def webhook():
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
-                content_sid="HX30e81828c2c77473173d7cc83a0b6dbd"
+                content_sid="HX8baef274f434c675cd1e1301dc8b4e4c"
             )
             lead["stage"] = "checkout"
             return "ok", 200
