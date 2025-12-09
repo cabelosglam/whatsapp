@@ -1,51 +1,13 @@
+# sheet_checker.py
+# Roda no Heroku Scheduler
+
 import os
-import time
 from google_sheets import monitorar_novos_leads
-from twilio.rest import Client
+from app import processar_novo_lead_sheet
 
-# ===============================
-# VARIÁVEIS DO HEROKU
-# ===============================
-ACCOUNT_SID = os.getenv("ACCOUNT_SID")
-AUTH_TOKEN = os.getenv("AUTH_TOKEN")
-FROM_WPP = os.getenv("FROM_WPP")
+print("=== INICIANDO LEITURA DA PLANILHA ===")
 
-client = Client(ACCOUNT_SID, AUTH_TOKEN)
+# monitorar_novos_leads agora RECEBE um callback
+monitorar_novos_leads(processar_novo_lead_sheet)
 
-# ===============================
-# BUSCAR NOVOS LEADS NA PLANILHA
-# ===============================
-novos = monitorar_novos_leads()
-
-if not novos:
-    print("[SHEET] Nenhum novo lead encontrado.")
-    exit()
-
-for lead in novos:
-    nome = lead["nome"]
-    telefone = lead["telefone"]
-
-    # Corrigir número para formato do WhatsApp
-    telefone = telefone.replace(" ", "").replace("-", "")
-    if not telefone.startswith("55"):
-        telefone = "55" + telefone
-
-    destino = f"whatsapp:+{telefone}"
-
-    print(f"[ENVIANDO PARA WHATSAPP] {nome} | {destino}")
-
-    # ===============================
-    # ENVIAR PRIMEIRA MENSAGEM
-    # ===============================
-    try:
-        client.messages.create(
-            from_=FROM_WPP,
-            to=destino,
-            content_sid="HXfb376726c199d4fc794977c6d62c4037"  # Mensagem 1
-        )
-        print("[OK] Mensagem enviada com sucesso.")
-
-    except Exception as e:
-        print("[ERRO AO ENVIAR]", e)
-
-    time.sleep(1)
+print("=== FINALIZADO ===")
