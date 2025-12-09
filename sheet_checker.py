@@ -1,6 +1,6 @@
 import os
 import time
-from google_sheets import buscar_novos_leads
+from google_sheets import monitorar_novos_leads
 from twilio.rest import Client
 
 # ===============================
