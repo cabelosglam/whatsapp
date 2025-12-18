@@ -52,6 +52,44 @@ def normalize_phone(phone: str) -> str:
     return ""
 
 # -------------------------------------------------------------
+# FUNÇÃO: anti-duplicidade
+# -------------------------------------------------------------
+
+PROCESSED_SIDS_FILE = "processed_sids.json"
+
+def load_processed_sids():
+    if os.path.exists(PROCESSED_SIDS_FILE):
+        try:
+            with open(PROCESSED_SIDS_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+def save_processed_sids(sids_set):
+    with open(PROCESSED_SIDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(list(sids_set), f, ensure_ascii=False, indent=2)
+
+processed_sids = load_processed_sids()
+
+def is_duplicate_message(message_sid: str) -> bool:
+    if not message_sid:
+        return False
+    if message_sid in processed_sids:
+        return True
+    processed_sids.add(message_sid)
+
+    # (opcional) limita o arquivo para não crescer infinito
+    if len(processed_sids) > 5000:
+        # mantém só os últimos 2000
+        processed_sids_list = list(processed_sids)[-2000:]
+        processed_sids.clear()
+        processed_sids.update(processed_sids_list)
+
+    save_processed_sids(processed_sids)
+    return False
+
+# -------------------------------------------------------------
 # FUNÇÃO: SALVAR MENSAGENS DE LOG JSON
 # -------------------------------------------------------------
 
@@ -297,10 +335,16 @@ def enviar():
 # -------------------------------------------------------------
 @app.route("/webhook-wpp", methods=["POST"])
 def webhook():
+    message_sid = request.form.get("MessageSid", "")
 
-    body = request.form.get("Body", "").strip().lower()
+    if is_duplicate_message(message_sid):
+        print(f"[DUPLICADO IGNORADO] MessageSid={message_sid}")
+        return "ok", 200
+
+    raw_body = request.form.get("Body", "").strip()
+    body = raw_body.lower()
+
     from_number_raw = request.form.get("From", "").strip()
-
     print("\nRAW NUMBER:", from_number_raw)
 
     # Normalizar
@@ -311,15 +355,8 @@ def webhook():
         from_number = f"whatsapp:+{clean}"
 
     print("NORMALIZADO:", from_number)
-    
-    salvar_log(
-        number=from_number,
-        body=body,
-        stage=lead_status.get(from_number, {}).get("stage", "desconhecido"),
-        direction="inbound"
-    )
 
-    # Criar lead se não existir
+    # Criar lead se não existir (ANTES do salvar_log inbound)
     if from_number not in lead_status:
         print("[INFO] Lead novo detectado via webhook")
         lead_status[from_number] = {
@@ -333,11 +370,18 @@ def webhook():
     lead = lead_status[from_number]
     lead["answered"] = True
 
-    if lead["nome"] == "":
+    if lead.get("nome", "") == "":
         lead["nome"] = "profissional"
 
     nome = lead["nome"]
 
+    # Agora sim salva log inbound com stage correto
+    salvar_log(
+        number=from_number,
+        body=raw_body,  # salva o texto original
+        stage=lead.get("stage", "desconhecido"),
+        direction="inbound"
+    )
     # -------------------------------------------------------------
     # ETAPA 1 — Pergunta inicial
     # -------------------------------------------------------------
@@ -351,12 +395,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "nutricao"
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX056f4623440f90a7d063f35c11e51b21"
             )
-            lead["stage"] = "nutricao"
+            
             return "ok", 200
 
         if respondeu_nao(body):
@@ -367,12 +413,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "busca"
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
-            lead["stage"] = "busca"
+            
             return "ok", 200
 
         return "ok", 200
@@ -392,12 +440,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "case"
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX7dd20c1f849fbfef0e86969e3bb830ed"
             )
-            lead["stage"] = "case"
+        
             return "ok", 200
 
         if respondeu_nao(body):
@@ -408,12 +458,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "busca"
+
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
-            lead["stage"] = "busca"
             return "ok", 200
 
         return "ok", 200
@@ -435,6 +487,8 @@ def webhook():
 
 
             vars_json = json.dumps({"nome": nome})
+            
+            lead["stage"] = "projecao"
 
             client.messages.create(
                 from_=FROM_WPP,
@@ -443,7 +497,6 @@ def webhook():
                 content_variables=vars_json
             )
 
-            lead["stage"] = "projecao"
             return "ok", 200
 
         if respondeu_nao(body):
@@ -454,12 +507,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "busca"
+
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
-            lead["stage"] = "busca"
             return "ok", 200
 
         return "ok", 200
@@ -485,14 +540,15 @@ def webhook():
 
             vars_json = json.dumps({"nome": nome})
 
+            lead["stage"] = "projecao"
+
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX056f4623440f90a7d063f35c11e51b21",
                 content_variables=vars_json
             )
-
-            lead["stage"] = "projecao"
             return "ok", 200
 
         return "ok", 200
@@ -511,13 +567,14 @@ def webhook():
                 stage=lead["stage"],
                 direction="outbound"
             )
+            
+            lead["stage"] = "formacao_glam"
 
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX5cf4af187864c97a446d5cbc1572ccca"
             )
-            lead["stage"] = "formacao_glam"
             return "ok", 200
 
         if respondeu_nao(body):
@@ -528,12 +585,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "end"
+
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
-            lead["stage"] = "end"
             return "ok", 200
 
         return "ok", 200
@@ -552,13 +611,13 @@ def webhook():
                 stage=lead["stage"],
                 direction="outbound"
             )
+            lead["stage"] = "checkout"
 
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX8baef274f434c675cd1e1301dc8b4e4c"
             )
-            lead["stage"] = "checkout"
             return "ok", 200
 
         if respondeu_nao(body):
@@ -569,12 +628,14 @@ def webhook():
                 direction="outbound"
             )
 
+            lead["stage"] = "end"
+
+
             client.messages.create(
                 from_=FROM_WPP,
                 to=from_number,
                 content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
-            lead["stage"] = "end"
             return "ok", 200
 
         return "ok", 200
