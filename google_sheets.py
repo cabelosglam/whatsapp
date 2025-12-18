@@ -35,6 +35,45 @@ def _col(headers_l, name):
         return None
     return headers_l.index(name) + 1 # 1-based
 
+def listar_leads_para_painel(limit=500):
+    """
+    Retorna um dicionário no formato que o leads.html espera:
+    {
+      "whatsapp:+55...": {"stage": "...", "updated_at": "..."}
+    }
+    """
+    ws = abrir_planilha()
+    valores = ws.get_all_values()
+    if not valores or len(valores) < 2:
+        return {}
+
+    headers = [h.strip().lower() for h in valores[0]]
+
+    def idx(nome):
+        if nome not in headers:
+            return None
+        return headers.index(nome)
+
+    tel_i = idx("telefone")
+    stage_i = idx("stage")
+    upd_i = idx("updated_at")
+
+    if tel_i is None:
+        return {}
+
+    leads = {}
+    for r in valores[1:]:
+        telefone = (r[tel_i].strip() if len(r) > tel_i else "")
+        if not telefone:
+            continue
+
+        stage = (r[stage_i].strip() if stage_i is not None and len(r) > stage_i else "start")
+        updated_at = (r[upd_i].strip() if upd_i is not None and len(r) > upd_i else "")
+
+        leads[telefone] = {"stage": stage or "start", "updated_at": updated_at}
+
+    return leads
+
 
 def get_or_create_lead(ws, telefone_wpp, nome_padrao="profissional", email_padrao=""):
     """

@@ -8,7 +8,7 @@ import threading
 import json
 from datetime import datetime
 import time
-from google_sheets import abrir_planilha, get_or_create_lead, update_fields, append_historico
+from google_sheets import abrir_planilha, get_or_create_lead, update_fields, append_historico, listar_leads_para_painel
 
 
 # -------------------------------------------------------------
@@ -185,40 +185,12 @@ def home():
 def form():
     return render_template("form.html")
 
+
+
 @app.route("/leads")
-def leads_page():
-
-    if not os.path.exists("logs.json"):
-        return render_template("leads.html", leads={})
-
-    try:
-        with open("logs.json", "r", encoding="utf-8") as f:
-            logs = json.load(f)
-    except:
-        logs = []
-
-    leads = {}
-
-    for entry in logs:
-
-        numero = entry.get("lead", "").strip()
-        if numero == "":
-            continue
-
-        if numero not in leads:
-            leads[numero] = {
-                "nome": "Lead",
-                "stage": entry.get("stage", "desconhecido"),
-                "last_message": entry.get("body", ""),
-                "timestamp": entry.get("timestamp", 0)
-            }
-        else:
-            if entry.get("timestamp", 0) > leads[numero]["timestamp"]:
-                leads[numero]["stage"] = entry.get("stage", "desconhecido")
-                leads[numero]["last_message"] = entry.get("body", "")
-                leads[numero]["timestamp"] = entry.get("timestamp", 0)
-
-    return render_template("leads.html", leads=leads)
+def leads():
+    leads_dict = listar_leads_para_painel()
+    return render_template("leads.html", leads=leads_dict)
 
 
 
@@ -330,6 +302,22 @@ def enviar():
 
     except Exception as e:
         return jsonify({"status": "erro", "erro": str(e)}), 500
+
+
+
+@app.route("/click-checkout")
+def click_checkout():
+    tel = (request.args.get("tel") or "").strip()
+    tel = normalizar_whatsapp_number(tel)
+
+    ws = abrir_planilha()
+    row_idx, headers_l, lead = get_or_create_lead(ws, tel, nome_padrao="profissional")
+
+    update_fields(ws, row_idx, headers_l, checkout_clicked_at=now_str())
+    append_historico(ws, row_idx, headers_l, "CHECKOUT CLICKED")
+
+    # seu link Hotmart:
+    return redirect("https://pay.hotmart.com/L102207547C", code=302)
 
 # -------------------------------------------------------------
 # Helpers
