@@ -38,27 +38,67 @@ def salvar_progresso(data):
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 
+import os
+import json
+import gspread
+
+# ... (SEUS IMPORTS E CONSTANTES AQUI: SHEET_ID, etc.)
+
 def monitorar_novos_leads(callback):
     """
-    Lê a planilha e dispara callback(nome, telefone, email)
-    para linhas novas.
+    Lê apenas as NOVAS linhas da planilha e chama o callback para cada lead novo.
+
+    - Usa um arquivo local sheet_state.json para guardar a última linha processada.
+    - Cada nova linha preenchida na planilha é tratada como um novo lead.
     """
 
-    ws = abrir_planilha()
-    dados = ws.get_all_records()
+    print("=== INICIANDO LEITURA DA PLANILHA ===")
 
-    progresso = carregar_progresso()
-    last_row = progresso.get("last_row", 1)
+    # 1) Conecta na planilha (ajuste se você usa outro método)
+    gc = gspread.service_account(filename="credentials.json")
+    sh = gc.open_by_key(SHEET_ID)
+    ws = sh.sheet1  # ou sh.worksheet("Nome da aba") se você usa outra aba
 
-    novos = dados[last_row:]  # somente linhas novas
+    # 2) Lê todas as linhas da planilha
+    valores = ws.get_all_values()  # lista de listas
+    total_linhas = len(valores)
 
-    for linha in novos:
-        nome = linha.get("Nome")
-        telefone = linha.get("Telefone")
-        email = linha.get("Email")
+    # Arquivo onde vamos guardar o último índice processado
+    state_file = "sheet_state.json"
 
-        if telefone:
-            callback(nome, telefone, email)
+    # 3) Recupera qual foi a última linha processada
+    last_row = 1  # 1 = cabeçalho; começamos a processar da linha 2
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                last_row = data.get("last_row", 1)
+        except Exception:
+            last_row = 1
 
-    progresso["last_row"] = len(dados)
-    salvar_progresso(progresso)
+    # Se não tem nenhuma linha nova depois do cabeçalho, sai
+    if total_linhas <= last_row:
+        print("Nenhum novo lead para processar.")
+        print("=== FINALIZADO ===")
+        return
+
+    # 4) Processa SOMENTE as linhas novas
+    #    (ex: se last_row = 3, começa da linha 4)
+    for idx in range(last_row + 1, total_linhas + 1):
+        row = ws.row_values(idx)  # pega a linha pelo índice
+
+        nome     = row[0] if len(row) > 0 else ""
+        telefone = row[1] if len(row) > 1 else ""
+        email    = row[2] if len(row) > 2 else ""
+
+        if not telefone:
+            continue  # ignora linhas sem telefone
+
+        print(f"[PROCESSANDO NOVO LEAD] {nome} | {telefone}")
+        callback(nome, telefone, email)
+
+    # 5) Atualiza o arquivo de estado com a última linha existente
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump({"last_row": total_linhas}, f)
+
+    print("=== FINALIZADO ===")

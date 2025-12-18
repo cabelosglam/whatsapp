@@ -517,7 +517,7 @@ def webhook():
                 to=from_number,
                 content_sid="HX5cf4af187864c97a446d5cbc1572ccca"
             )
-            lead["stage"] = "checkout"
+            lead["stage"] = "formacao_glam"
             return "ok", 200
 
         if respondeu_nao(body):
@@ -543,7 +543,7 @@ def webhook():
     # -------------------------------------------------------------
     # ETAPA 5 — Formação Glam
     # -------------------------------------------------------------
-    if lead["stage"] == "checkout":
+    if lead["stage"] == "formacao_glam":
 
         if respondeu_sim(body):
             salvar_log(
@@ -760,6 +760,26 @@ def delete_lead(numero):
 
     # 3 — Redireciona PARA /leads com parâmetro de confirmação
     return redirect(url_for("leads_page", deleted="ok"))
+
+@app.route("/click-checkout")
+def click_checkout():
+    telefone = request.args.get("tel")
+
+    if telefone:
+        telefone = normalize_phone(telefone)
+
+    if telefone in lead_status:
+        lead_status[telefone]["stage"] = "checkout_visit"
+
+        salvar_log(
+            number=telefone,
+            body="Lead clicou no botão do checkout",
+            stage="checkout_visit",
+            direction="system"
+        )
+
+    return redirect("https://pay.hotmart.com/L102207547C")
+
 
 @app.route("/marcar-comprou/<numero>", methods=["POST"])
 def marcar_comprou(numero):
