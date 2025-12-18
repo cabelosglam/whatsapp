@@ -40,43 +40,60 @@ def salvar_progresso(data):
 
 def monitorar_novos_leads(callback):
     """
-    Lê apenas as NOVAS linhas da planilha e chama o callback para cada lead novo.
-    Guarda a última linha processada em PROGRESS_FILE (json).
+    Processa somente linhas NÃO marcadas como ENVIADO na própria planilha.
+    Isso resolve o problema do Heroku Scheduler repetir envios a cada execução.
     """
-
-    print("=== INICIANDO LEITURA DA PLANILHA ===")
 
     ws = abrir_planilha()
 
-    # Lê todas as linhas (inclui cabeçalho)
+    # Lê tudo
     valores = ws.get_all_values()
-    total_linhas = len(valores)
-
-    # Recupera última linha processada (1 = cabeçalho)
-    state = carregar_progresso()
-    last_row = int(state.get("last_row", 1))
-
-    # Se não tem linha nova
-    if total_linhas <= last_row:
-        print("Nenhum novo lead para processar.")
-        print("=== FINALIZADO ===")
+    if not valores or len(valores) < 2:
+        print("Planilha vazia (ou só cabeçalho).")
         return
 
-    # Processa somente as linhas novas (a partir da próxima)
-    for idx in range(last_row + 1, total_linhas + 1):
-        row = ws.row_values(idx)
+    headers = [h.strip().lower() for h in valores[0]]
 
-        nome     = row[0].strip() if len(row) > 0 else ""
-        telefone = row[1].strip() if len(row) > 1 else ""
-        email    = row[2].strip() if len(row) > 2 else ""
+    def col_idx(nome):
+        # retorna índice 1-based
+        return headers.index(nome) + 1
 
+    # Colunas esperadas
+    nome_col = col_idx("nome")
+    tel_col = col_idx("telefone")
+    email_col = col_idx("email")
+
+    # Coluna ENVIADO (se não existir, você precisa criar no Google Sheets)
+    if "enviado" not in headers:
+        raise Exception("Crie uma coluna chamada ENVIADO no Google Sheets (no cabeçalho).")
+    enviado_col = col_idx("enviado")
+
+    enviados_agora = 0
+
+    # Começa da linha 2 (1 é cabeçalho)
+    for row_idx in range(2, len(valores) + 1):
+        row = ws.row_values(row_idx)
+
+        nome = row[nome_col - 1].strip() if len(row) >= nome_col else ""
+        telefone = row[tel_col - 1].strip() if len(row) >= tel_col else ""
+        email = row[email_col - 1].strip() if len(row) >= email_col else ""
+
+        enviado = row[enviado_col - 1].strip() if len(row) >= enviado_col else ""
+
+        # Se já marcado, ignora (não reenvia nunca)
+        if enviado:
+            continue
+
+        # Se não tem telefone, ignora
         if not telefone:
             continue
 
         print(f"[PROCESSANDO NOVO LEAD] {nome} | {telefone}")
         callback(nome, telefone, email)
 
-    # Atualiza o progresso com a última linha existente
-    salvar_progresso({"last_row": total_linhas})
+        # Marca como enviado (persistente!)
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws.update_cell(row_idx, enviado_col, f"ENVIADO {stamp}")
+        enviados_agora += 1
 
-    print("=== FINALIZADO ===")
+    print(f"OK — novos processados nesta execução: {enviados_agora}")
