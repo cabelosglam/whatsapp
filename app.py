@@ -8,7 +8,6 @@ import threading
 import json
 from datetime import datetime
 import time
-from google_sheets import abrir_planilha, get_or_create_lead, update_fields, append_historico, listar_leads_para_painel
 
 
 # -------------------------------------------------------------
@@ -185,12 +184,40 @@ def home():
 def form():
     return render_template("form.html")
 
-
-
 @app.route("/leads")
-def leads():
-    leads_dict = listar_leads_para_painel()
-    return render_template("leads.html", leads=leads_dict)
+def leads_page():
+
+    if not os.path.exists("logs.json"):
+        return render_template("leads.html", leads={})
+
+    try:
+        with open("logs.json", "r", encoding="utf-8") as f:
+            logs = json.load(f)
+    except:
+        logs = []
+
+    leads = {}
+
+    for entry in logs:
+
+        numero = entry.get("lead", "").strip()
+        if numero == "":
+            continue
+
+        if numero not in leads:
+            leads[numero] = {
+                "nome": "Lead",
+                "stage": entry.get("stage", "desconhecido"),
+                "last_message": entry.get("body", ""),
+                "timestamp": entry.get("timestamp", 0)
+            }
+        else:
+            if entry.get("timestamp", 0) > leads[numero]["timestamp"]:
+                leads[numero]["stage"] = entry.get("stage", "desconhecido")
+                leads[numero]["last_message"] = entry.get("body", "")
+                leads[numero]["timestamp"] = entry.get("timestamp", 0)
+
+    return render_template("leads.html", leads=leads)
 
 
 
@@ -305,225 +332,316 @@ def enviar():
 
 
 
-@app.route("/click-checkout")
-def click_checkout():
-    tel = (request.args.get("tel") or "").strip()
-    tel = normalizar_whatsapp_number(tel)
-
-    ws = abrir_planilha()
-    row_idx, headers_l, lead = get_or_create_lead(ws, tel, nome_padrao="profissional")
-
-    update_fields(ws, row_idx, headers_l, checkout_clicked_at=now_str())
-    append_historico(ws, row_idx, headers_l, "CHECKOUT CLICKED")
-
-    # seu link Hotmart:
-    return redirect("https://pay.hotmart.com/L102207547C", code=302)
-
-# -------------------------------------------------------------
-# Helpers
-# -------------------------------------------------------------
-def normalizar_whatsapp_number(from_number_raw: str) -> str:
-    from_number_raw = (from_number_raw or "").strip()
-    if from_number_raw.startswith("whatsapp:"):
-        return from_number_raw
-    clean = from_number_raw.replace("+", "").strip()
-    if clean.startswith("whatsapp:"):
-        return clean
-    return f"whatsapp:+{clean}"
-
-def respondeu_sim(body: str) -> bool:
-    b = (body or "").strip().lower()
-    return b in ["sim", "s", "yes", "y", "claro", "ok", "quero", "quero sim", "ss"]
-
-def respondeu_nao(body: str) -> bool:
-    b = (body or "").strip().lower()
-    return b in ["não", "nao", "n", "no", "não quero", "nao quero"]
-
-def now_str():
-    from datetime import datetime
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
 # -------------------------------------------------------------
 # ROTA: Webhook do WhatsApp (Twilio)
 # -------------------------------------------------------------
 @app.route("/webhook-wpp", methods=["POST"])
 def webhook():
-    message_sid = (request.form.get("MessageSid") or "").strip()
-    raw_body = (request.form.get("Body") or "").strip()
+    message_sid = request.form.get("MessageSid", "")
+
+    if is_duplicate_message(message_sid):
+        print(f"[DUPLICADO IGNORADO] MessageSid={message_sid}")
+        return "ok", 200
+
+    raw_body = request.form.get("Body", "").strip()
     body = raw_body.lower()
 
-    from_number_raw = (request.form.get("From") or "").strip()
-    from_number = normalizar_whatsapp_number(from_number_raw)
-
+    from_number_raw = request.form.get("From", "").strip()
     print("\nRAW NUMBER:", from_number_raw)
+
+    # Normalizar
+    if from_number_raw.startswith("whatsapp:"):
+        from_number = from_number_raw
+    else:
+        clean = from_number_raw.replace("+", "")
+        from_number = f"whatsapp:+{clean}"
+
     print("NORMALIZADO:", from_number)
-    print("BODY:", raw_body)
 
-    ws = abrir_planilha()
-    row_idx, headers_l, lead = get_or_create_lead(ws, from_number, nome_padrao="profissional")
+    # Criar lead se não existir (ANTES do salvar_log inbound)
+    if from_number not in lead_status:
+        print("[INFO] Lead novo detectado via webhook")
+        lead_status[from_number] = {
+            "timestamp": time.time(),
+            "answered": True,
+            "reminder_sent": False,
+            "stage": "start",
+            "nome": ""
+        }
 
-    # -------------------------
-    # Idempotência inbound: se o mesmo MessageSid chegar de novo, ignora.
-    # Usa sua coluna LAST_MESSAGE_SID (inbound).
-    # -------------------------
-    last_in_sid = (lead.get("last_message_sid") or "").strip()
-    if message_sid and last_in_sid == message_sid:
-        print("[DUPLICADO] mesmo MessageSid, ignorando.")
-        return "ok", 200
+    lead = lead_status[from_number]
+    lead["answered"] = True
 
-    # stage vem do Sheets (verdade única)
-    stage = (lead.get("stage") or "start").strip() or "start"
-    nome = (lead.get("nome") or "profissional").strip() or "profissional"
+    if lead.get("nome", "") == "":
+        lead["nome"] = "profissional"
 
-    # Salva inbound no Sheets
-    update_fields(
-        ws, row_idx, headers_l,
-        last_message_sid=message_sid,
-        last_inbound=raw_body,
-        updated_at=now_str()
+    nome = lead["nome"]
+
+    # Agora sim salva log inbound com stage correto
+    salvar_log(
+        number=from_number,
+        body=raw_body,  # salva o texto original
+        stage=lead.get("stage", "desconhecido"),
+        direction="inbound"
     )
-    append_historico(ws, row_idx, headers_l, f"INBOUND ({stage}): {raw_body}")
-
     # -------------------------------------------------------------
-    # FUNÇÃO local para enviar template + registrar no Sheets
+    # ETAPA 1 — Pergunta inicial
     # -------------------------------------------------------------
-    def enviar_template(content_sid, next_stage=None, content_variables=None, outbound_text_log=None):
-        # Atualiza stage antes de enviar (evita corrida)
-        if next_stage:
-            update_fields(ws, row_idx, headers_l, stage=next_stage, updated_at=now_str())
+    if lead["stage"] == "start":
 
-        # Envia
-        kwargs = dict(from_=FROM_WPP, to=from_number, content_sid=content_sid)
-        if content_variables:
-            kwargs["content_variables"] = json.dumps(content_variables)
-
-        msg = client.messages.create(**kwargs)
-
-        # Log no Sheets
-        update_fields(
-            ws, row_idx, headers_l,
-            last_template_sid=content_sid,
-            last_outbound_at=now_str(),
-            last_outbound=(outbound_text_log or f"TEMPLATE {content_sid}"),
-            # se você quiser guardar o SID outbound, crie coluna LAST_OUTBOUND_SID
-        )
-        append_historico(ws, row_idx, headers_l, f"OUTBOUND: {outbound_text_log or content_sid}")
-
-        return msg
-
-    # -------------------------------------------------------------
-    # STAGES
-    # -------------------------------------------------------------
-    if stage == "start":
         if respondeu_sim(body):
-            enviar_template(
-                content_sid="HX056f4623440f90a7d063f35c11e51b21",
-                next_stage="nutricao",
-                outbound_text_log="Nutrição 1"
+            salvar_log(
+                number=from_number,
+                body="Deixa eu te contar algo que quase ninguém percebe:",
+                stage=lead["stage"],
+                direction="outbound"
             )
+
+            lead["stage"] = "nutricao"
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX056f4623440f90a7d063f35c11e51b21"
+            )
+            
             return "ok", 200
 
         if respondeu_nao(body):
-            enviar_template(
-                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4",
-                next_stage="busca",
-                outbound_text_log="Recuperação (disse não)"
+            salvar_log(
+                number=from_number,
+                body="Sem problemas! Se um dia quiser aprender profissionalmente, é só me chamar 💖Quer mesmo assim conhecer como funciona o método Glam?",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+            lead["stage"] = "busca"
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
+            )
+            
+            return "ok", 200
+
+        return "ok", 200
+
+
+
+    # -------------------------------------------------------------
+    # ETAPA 2 — Nutrição
+    # -------------------------------------------------------------
+    if lead["stage"] == "nutricao":
+
+        if respondeu_sim(body):
+            salvar_log(
+                number=from_number,
+                body="CASE REAL — A Virada de Chave Glam",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+            lead["stage"] = "case"
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX7dd20c1f849fbfef0e86969e3bb830ed"
+            )
+        
+            return "ok", 200
+
+        if respondeu_nao(body):
+            salvar_log(
+                number=from_number,
+                body="Sem problemas! Se um dia quiser aprender profissionalmente, é só me chamar 💖Quer mesmo assim conhecer como funciona o método Glam?",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+            lead["stage"] = "busca"
+
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
             return "ok", 200
 
         return "ok", 200
 
-    if stage == "nutricao":
+
+
+    # -------------------------------------------------------------
+    # ETAPA 3 — Case de Sucesso
+    # -------------------------------------------------------------
+    if lead["stage"] == "case":
+
         if respondeu_sim(body):
-            enviar_template(
-                content_sid="HX7dd20c1f849fbfef0e86969e3bb830ed",
-                next_stage="case",
-                outbound_text_log="Case"
+            salvar_log(
+                number=from_number,
+                body="Deixa eu te revelar um ponto que, quando as profissionais entendem, a conversa muda de tom.",
+                stage=lead["stage"],
+                direction="outbound"
             )
-            return "ok", 200
 
-        if respondeu_nao(body):
-            enviar_template(
-                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4",
-                next_stage="busca",
-                outbound_text_log="Recuperação (na nutrição)"
-            )
-            return "ok", 200
 
-        return "ok", 200
+            vars_json = json.dumps({"nome": nome})
+            
+            lead["stage"] = "projecao"
 
-    if stage == "case":
-        if respondeu_sim(body):
-            enviar_template(
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
                 content_sid="HX9c35981fd182b8bafb7ba86f82f787c9",
-                next_stage="projecao",
-                content_variables={"nome": nome},
-                outbound_text_log="Projeção"
+                content_variables=vars_json
             )
+
             return "ok", 200
 
         if respondeu_nao(body):
-            enviar_template(
-                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4",
-                next_stage="busca",
-                outbound_text_log="Recuperação (no case)"
+            salvar_log(
+                number=from_number,
+                body="quer ver uma coisa que costuma abrir os olhos das profissionais?",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+            lead["stage"] = "busca"
+
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
             return "ok", 200
 
         return "ok", 200
 
-    # Recuperação: lead disse não e depois voltou com sim
-    if stage == "busca":
+
+
+    # -------------------------------------------------------------
+    # ETAPA — RECUPERAÇÃO (OPÇÃO B)
+    # Lead disse "não" mas depois mandou "sim"
+    # -------------------------------------------------------------
+    if lead["stage"] == "busca":
+
         if respondeu_sim(body):
-            # escolha: voltar para NUTRIÇÃO (faz mais sentido do que pular)
-            enviar_template(
+            salvar_log(
+                number=from_number,
+                body="Retorno",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+
+            print("[INFO] Lead voltou após dizer NÃO — retornando para CASE")
+
+            vars_json = json.dumps({"nome": nome})
+
+            lead["stage"] = "projecao"
+
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
                 content_sid="HX056f4623440f90a7d063f35c11e51b21",
-                next_stage="nutricao",
-                outbound_text_log="Voltou (retomando nutrição)"
+                content_variables=vars_json
             )
             return "ok", 200
+
         return "ok", 200
 
-    if stage == "projecao":
+
+
+    # -------------------------------------------------------------
+    # ETAPA 4 — Projeção
+    # -------------------------------------------------------------
+    if lead["stage"] == "projecao":
+
         if respondeu_sim(body):
-            enviar_template(
-                content_sid="HX5cf4af187864c97a446d5cbc1572ccca",
-                next_stage="formacao_glam",
-                outbound_text_log="Módulos"
+            salvar_log(
+                number=from_number,
+                body="Módulos",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+            
+            lead["stage"] = "formacao_glam"
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX5cf4af187864c97a446d5cbc1572ccca"
             )
             return "ok", 200
 
         if respondeu_nao(body):
-            enviar_template(
-                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4",
-                next_stage="end",
-                outbound_text_log="Encerrado (disse não na projeção)"
+            salvar_log(
+                number=from_number,
+                body="quer ver uma coisa que costuma abrir os olhos das profissionais?",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+            lead["stage"] = "end"
+
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
             return "ok", 200
 
         return "ok", 200
 
-    if stage == "formacao_glam":
+
+
+    # -------------------------------------------------------------
+    # ETAPA 5 — Formação GLAM
+    # -------------------------------------------------------------
+    if lead["stage"] == "formacao_glam":
+
         if respondeu_sim(body):
-            enviar_template(
-                content_sid="HX8baef274f434c675cd1e1301dc8b4e4c",
-                next_stage="checkout",
-                outbound_text_log="Checkout"
+            salvar_log(
+                number=from_number,
+                body="Link pagamento",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+            lead["stage"] = "checkout"
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX8baef274f434c675cd1e1301dc8b4e4c"
             )
             return "ok", 200
 
         if respondeu_nao(body):
-            enviar_template(
-                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4",
-                next_stage="end",
-                outbound_text_log="Encerrado (disse não na formação)"
+            salvar_log(
+                number=from_number,
+                body="quer ver uma coisa que costuma abrir os olhos das profissionais?",
+                stage=lead["stage"],
+                direction="outbound"
+            )
+
+            lead["stage"] = "end"
+
+
+            client.messages.create(
+                from_=FROM_WPP,
+                to=from_number,
+                content_sid="HX4d904d8b40ca29f56b466b5bf29b27b4"
             )
             return "ok", 200
 
         return "ok", 200
 
-    # Se já está em checkout/end, só registra e não fica repetindo
-    return "ok", 200
 
 
 def iniciar_fluxo_via_planilha(nome, telefone):
