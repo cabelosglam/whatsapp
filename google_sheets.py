@@ -1,5 +1,4 @@
 import gspread
-import json
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 
@@ -9,92 +8,109 @@ SERVICE_ACCOUNT_FILE = "credenciais/service_account.json"
 SPREADSHEET_ID = "13qKgDggJWpSkWMK3ebpskPrjP_6YEXCshj_iLVzWGjg"
 SHEET_NAME = "Página1"
 
-PROGRESS_FILE = "sheet_progress.json"
+
+def _now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def abrir_planilha():
-    creds = Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
-    )
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(SPREADSHEET_ID)
-    return sheet.worksheet(SHEET_NAME)
+    sh = client.open_by_key(SPREADSHEET_ID)
+    return sh.worksheet(SHEET_NAME)
 
 
-def ler_linhas():
-    ws = abrir_planilha()
-    return ws.get_all_records()
-
-
-def carregar_progresso():
-    try:
-        with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {"last_row": 1}
-
-
-def salvar_progresso(data):
-    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
-
-def monitorar_novos_leads(callback):
-    """
-    Processa somente linhas NÃO marcadas como ENVIADO na própria planilha.
-    Isso resolve o problema do Heroku Scheduler repetir envios a cada execução.
-    """
-
-    ws = abrir_planilha()
-
-    # Lê tudo
+def _get_headers(ws):
     valores = ws.get_all_values()
-    if not valores or len(valores) < 2:
-        print("Planilha vazia (ou só cabeçalho).")
-        return
+    if not valores or len(valores) < 1:
+        raise Exception("Planilha sem cabeçalho.")
+    headers_raw = valores[0]
+    headers_l = [h.strip().lower() for h in headers_raw]
+    return headers_l, len(headers_raw), valores
 
-    headers = [h.strip().lower() for h in valores[0]]
 
-    def col_idx(nome):
-        # retorna índice 1-based
-        return headers.index(nome) + 1
+def _col(headers_l, name):
+    name = name.strip().lower()
+    if name not in headers_l:
+        return None
+    return headers_l.index(name) + 1 # 1-based
 
-    # Colunas esperadas
-    nome_col = col_idx("nome")
-    tel_col = col_idx("telefone")
-    email_col = col_idx("email")
 
-    # Coluna ENVIADO (se não existir, você precisa criar no Google Sheets)
-    if "enviado" not in headers:
-        raise Exception("Crie uma coluna chamada ENVIADO no Google Sheets (no cabeçalho).")
-    enviado_col = col_idx("enviado")
+def get_or_create_lead(ws, telefone_wpp, nome_padrao="profissional", email_padrao=""):
+    """
+    Procura lead pelo telefone. Se não existir, cria linha.
+    Retorna: (row_idx, headers_l, lead_dict)
+    """
+    headers_l, width, valores = _get_headers(ws)
 
-    enviados_agora = 0
+    tel_col = _col(headers_l, "telefone")
+    if not tel_col:
+        raise Exception("A planilha precisa ter a coluna 'Telefone'.")
 
-    # Começa da linha 2 (1 é cabeçalho)
+    # Procura
     for row_idx in range(2, len(valores) + 1):
         row = ws.row_values(row_idx)
+        tel = row[tel_col - 1].strip() if len(row) >= tel_col else ""
+        if tel == telefone_wpp:
+            lead = {h: "" for h in headers_l}
+            for i, h in enumerate(headers_l):
+                lead[h] = row[i].strip() if i < len(row) else ""
+            return row_idx, headers_l, lead
 
-        nome = row[nome_col - 1].strip() if len(row) >= nome_col else ""
-        telefone = row[tel_col - 1].strip() if len(row) >= tel_col else ""
-        email = row[email_col - 1].strip() if len(row) >= email_col else ""
+    # Não achou -> cria linha nova
+    new_row = [""] * width
 
-        enviado = row[enviado_col - 1].strip() if len(row) >= enviado_col else ""
+    nome_col = _col(headers_l, "nome")
+    email_col = _col(headers_l, "email")
+    data_col = _col(headers_l, "data")
+    stage_col = _col(headers_l, "stage")
+    updated_col = _col(headers_l, "updated_at")
 
-        # Se já marcado, ignora (não reenvia nunca)
-        if enviado:
+    if nome_col:
+        new_row[nome_col - 1] = nome_padrao
+    new_row[tel_col - 1] = telefone_wpp
+    if email_col:
+        new_row[email_col - 1] = email_padrao
+    if data_col:
+        new_row[data_col - 1] = _now_str()
+    if stage_col:
+        new_row[stage_col - 1] = "start"
+    if updated_col:
+        new_row[updated_col - 1] = _now_str()
+
+    ws.append_row(new_row, value_input_option="USER_ENTERED")
+
+    # Retorna a última linha criada
+    row_idx = len(valores) + 1
+    lead = {h: "" for h in headers_l}
+    lead["telefone"] = telefone_wpp
+    lead["stage"] = "start"
+    return row_idx, headers_l, lead
+
+
+def update_fields(ws, row_idx, headers_l, **fields):
+    """
+    Atualiza campos por nome de coluna.
+    """
+    def col(name):
+        return _col(headers_l, name)
+
+    # auto updated_at
+    if _col(headers_l, "updated_at") and "updated_at" not in {k.lower() for k in fields.keys()}:
+        fields["updated_at"] = _now_str()
+
+    for k, v in fields.items():
+        c = col(k)
+        if not c:
             continue
+        ws.update_cell(row_idx, c, "" if v is None else str(v))
 
-        # Se não tem telefone, ignora
-        if not telefone:
-            continue
 
-        print(f"[PROCESSANDO NOVO LEAD] {nome} | {telefone}")
-        callback(nome, telefone, email)
-
-        # Marca como enviado (persistente!)
-        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ws.update_cell(row_idx, enviado_col, f"ENVIADO {stamp}")
-        enviados_agora += 1
-
-    print(f"OK — novos processados nesta execução: {enviados_agora}")
+def append_historico(ws, row_idx, headers_l, text):
+    hist_col = _col(headers_l, "historico")
+    if not hist_col:
+        return
+    atual = ws.cell(row_idx, hist_col).value or ""
+    stamp = _now_str()
+    novo = (atual + "\n" if atual else "") + f"[{stamp}] {text}"
+    ws.update_cell(row_idx, hist_col, novo)
