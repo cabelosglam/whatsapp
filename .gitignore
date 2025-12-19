@@ -1,1 +1,5 @@
-logs.json       
+.env
+credenciais/
+*.json
+__pycache__/
+*.pyc
