@@ -34,6 +34,11 @@ def _norm_tel_digits(v) -> str:
     s = _safe_str(v)
     digits = "".join(ch for ch in s if ch.isdigit())
 
+
+    # BR: se veio sem o 9 (55 + DDD + 8 dígitos = 12), insere "9" após o DDD
+    if len(digits) == 12 and digits.startswith("55"):
+        digits = digits[:4] + "9" + digits[4:]
+
     # DDD + número (10/11) -> prefixa 55
     if len(digits) in (10, 11):
         return "55" + digits

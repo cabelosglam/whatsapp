@@ -56,6 +56,10 @@ def normalize_phone_digits(phone: str) -> str:
     """Retorna apenas dígitos; aplica regra Brasil."""
     digits = "".join(filter(str.isdigit, safe_str(phone)))
 
+    # BR: se veio sem o 9 (55 + DDD + 8 dígitos = 12), insere "9" após o DDD
+    if len(digits) == 12 and digits.startswith("55"):
+        digits = digits[:4] + "9" + digits[4:]
+
     # 10 ou 11 dígitos (DDD + número) -> prefixa 55
     if len(digits) in (10, 11):
         return "55" + digits
