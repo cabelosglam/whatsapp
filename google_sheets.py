@@ -17,6 +17,12 @@ def _now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _safe_str(v):
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
 def _norm_tel_digits(v) -> str:
     """
     Normaliza qualquer telefone para SOMENTE DÍGITOS com país 55 quando possível.
@@ -25,20 +31,17 @@ def _norm_tel_digits(v) -> str:
       - +556298...
       - whatsapp:+556298...
     """
-    if v is None:
-        return ""
-    s = str(v).strip()
+    s = _safe_str(v)
     digits = "".join(ch for ch in s if ch.isdigit())
 
-    # Se veio com DDD + número (10/11), prefixa 55
+    # DDD + número (10/11) -> prefixa 55
     if len(digits) in (10, 11):
         return "55" + digits
 
-    # Se já veio com 55 (12/13)
+    # Já veio com 55 (12/13)
     if len(digits) in (12, 13) and digits.startswith("55"):
         return digits
 
-    # Caso raro: já veio completo sem 55 mas com 12/13
     return digits
 
 
@@ -55,7 +58,6 @@ def abrir_planilha():
 
 
 def abrir_aba(nome_aba: str):
-    """Abre uma aba/worksheet pelo nome."""
     creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
     sh = client.open_by_key(SPREADSHEET_ID)
@@ -63,7 +65,6 @@ def abrir_aba(nome_aba: str):
 
 
 def ensure_logs_worksheet():
-    """Garante que a aba LOGS exista e tenha cabeçalho."""
     creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
     sh = client.open_by_key(SPREADSHEET_ID)
@@ -82,130 +83,130 @@ def ensure_logs_worksheet():
     return ws
 
 
-def append_log_row(
-    telefone_wpp: str,
-    direction: str,
-    stage: str,
-    body: str,
-    message_sid: str = "",
-    template_sid: str = "",
-):
-    """Append (não sobrescreve) um log na aba LOGS."""
+def append_log_row(telefone_wpp: str, direction: str, stage: str, body: str, message_sid: str = "", template_sid: str = ""):
     ws = ensure_logs_worksheet()
     ws.append_row(
-        [_now_str(), _canon_wpp(telefone_wpp) or str(telefone_wpp), direction, stage, body, message_sid, template_sid],
+        [_now_str(), _canon_wpp(telefone_wpp) or _safe_str(telefone_wpp), direction, stage, body, message_sid, template_sid],
         value_input_option="USER_ENTERED",
     )
 
 
-def get_records(nome_aba: str):
-    """Retorna a lista de dicts (headers -> valores) de uma aba."""
-    ws = abrir_aba(nome_aba)
-    return ws.get_all_records()
-
-
-def _find_tel_col(headers_l, telefone_col_names=("telefone", "phone", "celular")):
-    tel_col = None
-    for name in telefone_col_names:
-        if name in headers_l:
-            tel_col = headers_l.index(name) + 1
-            break
-    if tel_col is None:
-        if "telefone" in headers_l:
-            tel_col = headers_l.index("telefone") + 1
-        else:
-            raise Exception("Coluna TELEFONE não encontrada na aba.")
-    return tel_col
-
-
-def find_rows_by_phone(ws, telefone_wpp: str, telefone_col_names=("telefone", "phone", "celular")):
-    """
-    Procura linhas que tenham o telefone, comparando por DÍGITOS normalizados (evita duplicar).
-    """
+def _headers(ws):
     valores = ws.get_all_values()
     if not valores:
-        return []
-
+        raise Exception("Planilha sem cabeçalho.")
     headers = [h.strip() for h in valores[0]]
     headers_l = [h.strip().lower() for h in headers]
-    tel_col = _find_tel_col(headers_l, telefone_col_names)
-
-    target = _norm_tel_digits(telefone_wpp)
-    matched = []
-    for i, row in enumerate(valores[1:], start=2):
-        tel = row[tel_col - 1].strip() if len(row) >= tel_col else ""
-        if _norm_tel_digits(tel) == target and target:
-            matched.append(i)
-    return matched
+    return valores, headers, headers_l
 
 
-def delete_lead_and_logs(telefone_wpp: str):
-    """Remove o lead da Página1 e remove todas as linhas do LOGS desse telefone."""
-    ws_leads = abrir_aba(SHEET_NAME)
-    lead_rows = find_rows_by_phone(ws_leads, telefone_wpp)
-    for r in sorted(lead_rows, reverse=True):
-        ws_leads.delete_rows(r)
+def _col(headers_l, nome):
+    return headers_l.index(nome.lower()) + 1
 
-    ws_logs = ensure_logs_worksheet()
-    log_rows = find_rows_by_phone(ws_logs, telefone_wpp, telefone_col_names=("telefone",))
-    for r in sorted(log_rows, reverse=True):
-        ws_logs.delete_rows(r)
 
-    return True
+def _row_to_dict(headers_l, row_values):
+    d = {}
+    for idx, h in enumerate(headers_l):
+        d[h] = _safe_str(row_values[idx]) if idx < len(row_values) else ""
+    return d
+
+
+def _score_row(data: dict) -> int:
+    """
+    Escolhe a 'melhor' linha quando existem duplicadas.
+    Prioriza:
+      1) nome preenchido e diferente de 'profissional'
+      2) email preenchido
+      3) mais colunas preenchidas
+    """
+    score = 0
+    nome = (data.get("nome") or "").strip().lower()
+    email = (data.get("email") or "").strip().lower()
+
+    if nome and nome != "profissional":
+        score += 100
+    if email:
+        score += 20
+
+    # densidade de dados
+    filled = sum(1 for v in data.values() if str(v).strip())
+    score += min(filled, 30)
+
+    return score
+
+
+def dedupe_rows_by_phone(ws, telefone_any: str):
+    """
+    Se existirem múltiplas linhas com o mesmo telefone (comparando por dígitos),
+    mantém a melhor e apaga o resto. Retorna (kept_row_idx, headers_l, kept_data).
+    """
+    valores, headers, headers_l = _headers(ws)
+    tel_col = _col(headers_l, "telefone")
+
+    target = _norm_tel_digits(telefone_any)
+    if not target:
+        return None
+
+    matches = []
+    for i in range(2, len(valores) + 1):
+        row = ws.row_values(i)
+        tel_cell = _safe_str(row[tel_col - 1]) if len(row) >= tel_col else ""
+        if _norm_tel_digits(tel_cell) == target:
+            data = _row_to_dict(headers_l, row)
+            matches.append((i, data))
+
+    if not matches:
+        return None
+
+    # escolhe melhor
+    matches_sorted = sorted(matches, key=lambda x: _score_row(x[1]), reverse=True)
+    keep_idx, keep_data = matches_sorted[0]
+
+    # normaliza telefone na linha mantida
+    canonical = _canon_wpp(telefone_any) or _canon_wpp(keep_data.get("telefone")) or keep_data.get("telefone") or ""
+    if canonical:
+        try:
+            ws.update_cell(keep_idx, tel_col, canonical)
+            keep_data["telefone"] = canonical
+        except Exception:
+            pass
+
+    # apaga duplicadas (de baixo pra cima)
+    to_delete = [idx for idx, _ in matches_sorted[1:]]
+    for r in sorted(to_delete, reverse=True):
+        try:
+            ws.delete_rows(r)
+        except Exception:
+            pass
+
+    return keep_idx, headers_l, keep_data
 
 
 def get_or_create_lead_row(ws, telefone_wpp: str, nome_padrao="profissional"):
     """
-    Procura pelo telefone (coluna Telefone) e retorna:
-      (row_idx, headers_l, row_values_dict)
-    Se não existir, cria uma nova linha.
-
-    IMPORTANTE: compara por dígitos normalizados para evitar duplicidade (ex.: '6298...' vs 'whatsapp:+556298...').
+    Procura pelo telefone por dígitos normalizados; se houver duplicados, deduplica.
+    Se não existir, cria.
     """
-    valores = ws.get_all_values()
-    if not valores:
-        raise Exception("Planilha sem cabeçalho.")
+    # 1) se já existe (ou duplicado), deduplica e retorna
+    deduped = dedupe_rows_by_phone(ws, telefone_wpp)
+    if deduped:
+        return deduped
 
-    headers = [h.strip() for h in valores[0]]
-    headers_l = [h.strip().lower() for h in valores[0]]
+    # 2) não existe -> cria
+    valores, headers, headers_l = _headers(ws)
+    tel_col = _col(headers_l, "telefone")
 
-    def col(nome):
-        return headers_l.index(nome.lower()) + 1  # 1-based
+    def set_if_exists(row, colname, value):
+        if colname in headers_l:
+            row[_col(headers_l, colname) - 1] = value
 
-    tel_col = col("telefone")
-    target_digits = _norm_tel_digits(telefone_wpp)
-    canonical = _canon_wpp(telefone_wpp) or str(telefone_wpp)
-
-    # varre linhas
-    for i in range(2, len(valores) + 1):
-        row = ws.row_values(i)
-        tel_cell = row[tel_col - 1].strip() if len(row) >= tel_col else ""
-        if target_digits and _norm_tel_digits(tel_cell) == target_digits:
-            data = {}
-            for idx, h in enumerate(headers_l):
-                data[h] = row[idx].strip() if idx < len(row) else ""
-
-            # opcional: normaliza o telefone na planilha para o formato canonical
-            try:
-                if canonical and tel_cell != canonical:
-                    ws.update_cell(i, tel_col, canonical)
-                    data["telefone"] = canonical
-            except Exception:
-                pass
-
-            return i, headers_l, data
-
-    # não achou -> cria
+    canonical = _canon_wpp(telefone_wpp) or _safe_str(telefone_wpp)
     new_row = [""] * len(headers)
-    if "nome" in headers_l:
-        new_row[col("nome") - 1] = nome_padrao
+    set_if_exists(new_row, "nome", nome_padrao)
     new_row[tel_col - 1] = canonical
-    if "data" in headers_l:
-        new_row[col("data") - 1] = _now_str()
-    if "stage" in headers_l:
-        new_row[col("stage") - 1] = "start"
-    if "updated_at" in headers_l:
-        new_row[col("updated_at") - 1] = _now_str()
+    set_if_exists(new_row, "data", _now_str())
+    set_if_exists(new_row, "stage", "start")
+    set_if_exists(new_row, "updated_at", _now_str())
 
     ws.append_row(new_row, value_input_option="USER_ENTERED")
 
@@ -230,6 +231,31 @@ def update_lead_fields(ws, row_idx: int, headers_l: list, **fields):
         ws.update_cell(row_idx, col(key), str(v))
 
 
+def find_rows_by_phone(ws, telefone_any: str, telefone_col_names=("telefone", "phone", "celular")):
+    valores, headers, headers_l = _headers(ws)
+    tel_col = _col(headers_l, "telefone")
+    target = _norm_tel_digits(telefone_any)
+    matched = []
+    for i, row in enumerate(valores[1:], start=2):
+        tel = row[tel_col - 1].strip() if len(row) >= tel_col else ""
+        if _norm_tel_digits(tel) == target and target:
+            matched.append(i)
+    return matched
+
+
+def delete_lead_and_logs(telefone_wpp: str):
+    ws_leads = abrir_aba(SHEET_NAME)
+    lead_rows = find_rows_by_phone(ws_leads, telefone_wpp)
+    for r in sorted(lead_rows, reverse=True):
+        ws_leads.delete_rows(r)
+
+    ws_logs = ensure_logs_worksheet()
+    log_rows = find_rows_by_phone(ws_logs, telefone_wpp, telefone_col_names=("telefone",))
+    for r in sorted(log_rows, reverse=True):
+        ws_logs.delete_rows(r)
+    return True
+
+
 def ler_linhas():
     ws = abrir_planilha()
     return ws.get_all_records()
@@ -249,9 +275,6 @@ def salvar_progresso(data):
 
 
 def monitorar_novos_leads(callback):
-    """
-    Processa somente linhas NÃO marcadas como ENVIADO na própria planilha.
-    """
     ws = abrir_planilha()
     valores = ws.get_all_values()
     if not valores or len(valores) < 2:
@@ -276,11 +299,11 @@ def monitorar_novos_leads(callback):
     for row_idx in range(2, len(valores) + 1):
         row = ws.row_values(row_idx)
 
-        nome = str(row[nome_col - 1]).strip() if len(row) >= nome_col else ""
-        telefone = str(row[tel_col - 1]).strip() if len(row) >= tel_col else ""
-        email = str(row[email_col - 1]).strip() if len(row) >= email_col else ""
+        nome = _safe_str(row[nome_col - 1]) if len(row) >= nome_col else ""
+        telefone = _safe_str(row[tel_col - 1]) if len(row) >= tel_col else ""
+        email = _safe_str(row[email_col - 1]) if len(row) >= email_col else ""
 
-        enviado = str(row[enviado_col - 1]).strip() if len(row) >= enviado_col else ""
+        enviado = _safe_str(row[enviado_col - 1]) if len(row) >= enviado_col else ""
         if enviado:
             continue
         if not telefone:
@@ -289,7 +312,7 @@ def monitorar_novos_leads(callback):
         print(f"[PROCESSANDO NOVO LEAD] {nome} | {telefone}")
         callback(nome, telefone, email)
 
-        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        stamp = _now_str()
         ws.update_cell(row_idx, enviado_col, f"ENVIADO {stamp}")
         enviados_agora += 1
 
