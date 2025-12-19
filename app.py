@@ -222,6 +222,82 @@ def respondeu_nao(body):
     ]
     return body in negativas or body.startswith("n")
 
+
+# -------------------------------------------------------------
+#  PROCESSAR NOVO LEAD (para o Heroku Scheduler / sheet_checker.py)
+# -------------------------------------------------------------
+def processar_novo_lead_sheet(nome: str, telefone: str, email: str = ""):
+    """
+    Função chamada pelo sheet_checker.py.
+    - Envia o primeiro template para o lead
+    - Marca a coluna ENVIADO na Página1
+    - Atualiza colunas de tracking (STAGE, UPDATED_AT, LAST_*)
+    - Registra na aba LOGS
+    """
+    nome = safe_str(nome) or "profissional"
+    wpp = normalize_to_wpp(telefone)
+    if not wpp:
+        print("[SCHEDULER] Telefone inválido:", telefone)
+        return False
+
+    template_sid = "HX3a3278be375c5f6368dc282229dfdd89"  # seu template inicial
+    vars_json = json.dumps({"nome": nome})
+
+    try:
+        msg = client.messages.create(
+            from_=FROM_WPP,
+            to=wpp,
+            content_sid=template_sid,
+            content_variables=vars_json
+        )
+
+        # garante/atualiza linha do lead e marca ENVIADO
+        try:
+            ws = abrir_planilha()
+            row_idx, headers_l, _ = get_or_create_lead_row(ws, wpp, nome_padrao=nome)
+            update_lead_fields(
+                ws,
+                row_idx,
+                headers_l,
+                enviado=f"ENVIADO {now_str()}",
+                stage="start",
+                last_template_sid=template_sid,
+                last_outbound_at=now_str(),
+                last_message_sid=getattr(msg, "sid", ""),
+                last_outbound="(start) template enviado",
+            )
+        except Exception as e:
+            print("[SCHEDULER] Falha ao atualizar lead no Sheets:", e)
+
+        # memória local (curta)
+        lead_status[wpp] = {
+            "timestamp": time.time(),
+            "answered": False,
+            "reminder_sent": False,
+            "stage": "start",
+            "nome": nome
+        }
+
+        # log persistente (LOGS + update Page1)
+        salvar_log(
+            number_wpp=wpp,
+            body="(start) template enviado",
+            stage="start",
+            direction="outbound",
+            message_sid=getattr(msg, "sid", ""),
+            template_sid=template_sid
+        )
+
+        # follow-up
+        threading.Thread(target=enviar_followup, args=(wpp,), daemon=True).start()
+
+        print("[SCHEDULER] Envio OK para", wpp)
+        return True
+
+    except Exception as e:
+        print("[SCHEDULER] Erro ao enviar template:", e)
+        return False
+
 # -------------------------------------------------------------
 #  ROTA: HOME / FORM
 # -------------------------------------------------------------
@@ -350,7 +426,7 @@ def enviar():
         try:
             ws = abrir_planilha()
             row_idx, headers_l, _ = get_or_create_lead_row(ws, wpp, nome_padrao=nome or "profissional")
-            update_lead_fields(ws, row_idx, headers_l, stage="start")
+            update_lead_fields(ws, row_idx, headers_l, enviado=f"ENVIADO {now_str()}", stage="start")
         except Exception as e:
             print("[WARN] Falha ao criar/atualizar lead no Sheets (manual):", e)
 
