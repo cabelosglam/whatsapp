@@ -8,7 +8,6 @@ SERVICE_ACCOUNT_FILE = "credenciais/service_account.json"
 
 SPREADSHEET_ID = "13qKgDggJWpSkWMK3ebpskPrjP_6YEXCshj_iLVzWGjg"
 SHEET_NAME = "Página1"
-LOGS_SHEET_NAME = "LOGS"
 
 PROGRESS_FILE = "sheet_progress.json"
 
@@ -26,101 +25,17 @@ from datetime import datetime
 
 
 def abrir_aba(nome_aba: str):
-    """Abre uma aba/worksheet pelo nome."""
-    creds = Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE,
-        scopes=SCOPES
-    )
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
     sh = client.open_by_key(SPREADSHEET_ID)
     return sh.worksheet(nome_aba)
 
-
-def ensure_logs_worksheet():
-    """Garante que a aba LOGS exista e tenha cabeçalho."""
-    creds = Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE,
-        scopes=SCOPES
-    )
-    client = gspread.authorize(creds)
-    sh = client.open_by_key(SPREADSHEET_ID)
-
-    try:
-        ws = sh.worksheet(LOGS_SHEET_NAME)
-    except Exception:
-        ws = sh.add_worksheet(title=LOGS_SHEET_NAME, rows=2000, cols=10)
-
-    values = ws.get_all_values()
-    if not values:
-        ws.append_row(
-            ["TIMESTAMP", "TELEFONE", "DIRECTION", "STAGE", "BODY", "MESSAGE_SID", "TEMPLATE_SID"],
-            value_input_option="USER_ENTERED"
-        )
-    return ws
-
-
-def append_log_row(telefone_wpp: str, direction: str, stage: str, body: str,
-                   message_sid: str = "", template_sid: str = ""):
-    """Append (não sobrescreve) um log na aba LOGS."""
-    ws = ensure_logs_worksheet()
-    ws.append_row(
-        [_now_str(), telefone_wpp, direction, stage, body, message_sid, template_sid],
+def append_log_row(telefone, direction, stage, body, message_sid="", template_sid=""):
+    ws_logs = abrir_aba("LOGS")
+    ws_logs.append_row(
+        [_now_str(), telefone, direction, stage, body, message_sid, template_sid],
         value_input_option="USER_ENTERED"
     )
-
-
-def get_records(nome_aba: str):
-    """Retorna a lista de dicts (headers -> valores) de uma aba."""
-    ws = abrir_aba(nome_aba)
-    return ws.get_all_records()
-
-
-def find_rows_by_phone(ws, telefone_wpp: str, telefone_col_names=("telefone", "phone", "celular")):
-    """Procura linhas que tenham o telefone (case-insensitive no nome da coluna)."""
-    valores = ws.get_all_values()
-    if not valores:
-        return []
-
-    headers = [h.strip() for h in valores[0]]
-    headers_l = [h.strip().lower() for h in headers]
-
-    # achar coluna de telefone
-    tel_col = None
-    for name in telefone_col_names:
-        if name in headers_l:
-            tel_col = headers_l.index(name) + 1
-            break
-    if tel_col is None:
-        # fallback: tenta achar 'Telefone' exatamente
-        if "telefone" in headers_l:
-            tel_col = headers_l.index("telefone") + 1
-        else:
-            raise Exception("Coluna TELEFONE não encontrada na aba.")
-
-    matched = []
-    for i, row in enumerate(valores[1:], start=2):
-        tel = row[tel_col - 1].strip() if len(row) >= tel_col else ""
-        if tel == telefone_wpp:
-            matched.append(i)
-    return matched
-
-
-def delete_lead_and_logs(telefone_wpp: str):
-    """Remove o lead da Página1 e remove todas as linhas do LOGS desse telefone."""
-    # 1) remover lead da Página1
-    ws_leads = abrir_aba(SHEET_NAME)
-    lead_rows = find_rows_by_phone(ws_leads, telefone_wpp)
-    # deletar de baixo pra cima
-    for r in sorted(lead_rows, reverse=True):
-        ws_leads.delete_rows(r)
-
-    # 2) remover logs do LOGS
-    ws_logs = ensure_logs_worksheet()
-    log_rows = find_rows_by_phone(ws_logs, telefone_wpp, telefone_col_names=("telefone",))
-    for r in sorted(log_rows, reverse=True):
-        ws_logs.delete_rows(r)
-
-    return True
 
 def _now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")

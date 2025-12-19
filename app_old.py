@@ -95,72 +95,31 @@ def is_duplicate_message(message_sid: str) -> bool:
 # FUNÇÃO: SALVAR MENSAGENS DE LOG JSON
 # -------------------------------------------------------------
 
-def salvar_log(number, body, stage, direction, message_sid="", template_sid=""):
-    """Salva log de forma PERSISTENTE no Google Sheets (aba LOGS) e atualiza a linha do lead na Página1.
+def salvar_log(number, body, stage, direction):
+    entry = {
+        "timestamp": time.time(),
+        "lead": number,
+        "direction": direction,
+        "body": body,
+        "stage": stage
+    }
 
-    number deve ser no formato 'whatsapp:+55...'
-    """
     try:
-        # 1) append na aba LOGS
-        append_log_row(
-            telefone_wpp=number,
-            direction=direction,
-            stage=stage,
-            body=body,
-            message_sid=message_sid,
-            template_sid=template_sid
-        )
+        logs = []
+        if os.path.exists("logs.json") and os.path.getsize("logs.json") > 0:
+            try:
+                with open("logs.json", "r", encoding="utf-8") as f:
+                    logs = json.load(f)
+            except:
+                logs = []
 
-        # 2) update do lead na Página1 (stage + últimos campos)
-        ws = abrir_planilha()  # abre a aba SHEET_NAME
-        row_idx, headers_l, _ = get_or_create_lead_row(ws, number)
+        logs.append(entry)
 
-        fields = {"stage": stage}
-
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        if direction == "inbound":
-            fields.update({
-                "last_inbound": body,
-                "last_inbound_at": now_str
-            })
-        else:
-            fields.update({
-                "last_outbound": body,
-                "last_outbound_at": now_str
-            })
-
-        if template_sid:
-            fields["last_template_sid"] = template_sid
-        if message_sid:
-            fields["last_message_sid"] = message_sid
-
-        update_lead_fields(ws, row_idx, headers_l, **fields)
+        with open("logs.json", "w", encoding="utf-8") as f:
+            json.dump(logs, f, indent=4, ensure_ascii=False)
 
     except Exception as e:
-        print("[ERRO AO SALVAR LOG NO SHEETS]", e)
-        # fallback opcional: não quebra o fluxo se Sheets falhar
-        try:
-            entry = {
-                "timestamp": time.time(),
-                "lead": number,
-                "direction": direction,
-                "body": body,
-                "stage": stage
-            }
-            logs = []
-            if os.path.exists("logs.json") and os.path.getsize("logs.json") > 0:
-                try:
-                    with open("logs.json", "r", encoding="utf-8") as f:
-                        logs = json.load(f)
-                except:
-                    logs = []
-            logs.append(entry)
-            with open("logs.json", "w", encoding="utf-8") as f:
-                json.dump(logs, f, indent=4, ensure_ascii=False)
-        except Exception as ee:
-            print("[FALLBACK LOGS.JSON FALHOU]", ee)
-
+        print("[ERRO AO SALVAR LOG]", e)
 
 
 # -------------------------------------------------------------
@@ -227,99 +186,104 @@ def form():
 
 @app.route("/leads")
 def leads_page():
-    """Lista de leads vem da aba Página1 (Google Sheets)."""
+
+    if not os.path.exists("logs.json"):
+        return render_template("leads.html", leads={})
+
     try:
-        ws = abrir_planilha()
-        rows = ws.get_all_records()  # list[dict]
-    except Exception as e:
-        print("[ERRO AO LER LEADS DO SHEETS]", e)
-        rows = []
+        with open("logs.json", "r", encoding="utf-8") as f:
+            logs = json.load(f)
+    except:
+        logs = []
 
     leads = {}
 
-    for r in rows:
-        # tenta diferentes nomes de coluna (case-insensitive no Sheets vira exatamente como está no header)
-        telefone = (r.get("TELEFONE") or r.get("Telefone") or r.get("telefone") or "").strip()
-        if not telefone:
+    for entry in logs:
+
+        numero = entry.get("lead", "").strip()
+        if numero == "":
             continue
 
-        stage = (r.get("STAGE") or r.get("Stage") or r.get("stage") or "").strip() or "start"
-        # normaliza
-        stage = stage.lower()
-
-        leads[telefone] = {
-            "stage": stage
-        }
+        if numero not in leads:
+            leads[numero] = {
+                "nome": "Lead",
+                "stage": entry.get("stage", "desconhecido"),
+                "last_message": entry.get("body", ""),
+                "timestamp": entry.get("timestamp", 0)
+            }
+        else:
+            if entry.get("timestamp", 0) > leads[numero]["timestamp"]:
+                leads[numero]["stage"] = entry.get("stage", "desconhecido")
+                leads[numero]["last_message"] = entry.get("body", "")
+                leads[numero]["timestamp"] = entry.get("timestamp", 0)
 
     return render_template("leads.html", leads=leads)
 
 
 
-
-
 @app.route("/conversas")
 def listar_conversas():
-    """Lista conversas a partir da Página1 (lead -> stage)."""
+
+    # Carrega logs
+    if not os.path.exists("logs.json"):
+        return render_template("conversas_lista.html", leads={})
+
     try:
-        ws = abrir_planilha()
-        rows = ws.get_all_records()
-    except Exception as e:
-        print("[ERRO AO LER CONVERSAS DO SHEETS]", e)
-        rows = []
+        with open("logs.json", "r", encoding="utf-8") as f:
+            logs = json.load(f)
+    except:
+        logs = []
 
     conversas = {}
-    for r in rows:
-        telefone = (r.get("TELEFONE") or r.get("Telefone") or r.get("telefone") or "").strip()
-        if not telefone:
-            continue
-        stage = (r.get("STAGE") or r.get("Stage") or r.get("stage") or "start").strip().lower()
-        updated_at = (r.get("UPDATED_AT") or r.get("Updated_At") or r.get("updated_at") or "").strip()
 
-        conversas[telefone] = {
-            "stage": stage,
-            "last_time": updated_at
-        }
+    # Montar lista baseada nos logs
+    for log in logs:
+        numero = log.get("lead")
+        if not numero:
+            continue
+
+        if numero not in conversas:
+            conversas[numero] = {
+                "stage": log.get("stage", "desconhecido"),
+                "last_time": log.get("timestamp"),
+            }
+        else:
+            # Atualiza o stage e timestamp se for mais recente
+            if log.get("timestamp") > conversas[numero]["last_time"]:
+                conversas[numero]["stage"] = log.get("stage", "desconhecido")
+                conversas[numero]["last_time"] = log.get("timestamp")
 
     return render_template("conversas_lista.html", leads=conversas)
 
 
 
-
-
 @app.route("/conversas/<numero>")
 def conversa_individual(numero):
-    """Conversa individual vem da aba LOGS."""
-    mensagens = []
+
+    if not os.path.exists("logs.json"):
+        return render_template("conversa.html", numero=numero, mensagens=[])
+
     try:
-        ensure_logs_worksheet()
-        from google_sheets_old import abrir_aba, LOGS_SHEET_NAME
-        ws_logs = abrir_aba(LOGS_SHEET_NAME)
-        logs = ws_logs.get_all_records()
-    except Exception as e:
-        print("[ERRO AO LER LOGS DO SHEETS]", e)
+        with open("logs.json", "r", encoding="utf-8") as f:
+            logs = json.load(f)
+    except:
         logs = []
 
+    conversas = []
+
     for log in logs:
-        telefone = (log.get("TELEFONE") or log.get("Telefone") or "").strip()
-        if telefone != numero:
-            continue
-
-        ts = (log.get("TIMESTAMP") or "").strip()
-        # TIMESTAMP está como string, então já geramos um 'time' amigável
-        time_str = ts if ts else datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-        mensagens.append({
-            "lead": telefone,
-            "direction": (log.get("DIRECTION") or "").strip(),
-            "body": (log.get("BODY") or "").strip(),
-            "stage": (log.get("STAGE") or "").strip(),
-            "time": time_str,
-            "timestamp": 0
-        })
-
-    return render_template("conversa.html", numero=numero, mensagens=mensagens)
+        if log.get("lead") == numero:
+            conversas.append(log)
 
 
+    # ordenar por tempo
+    conversas.sort(key=lambda x: x.get("timestamp", 0))
+
+    # formata timestamps
+    for msg in conversas:
+        msg["time"] = datetime.fromtimestamp(msg["timestamp"]).strftime("%d/%m/%Y %H:%M:%S")
+
+    return render_template("conversa.html", numero=numero, mensagens=conversas)
 
 
 
@@ -722,93 +686,90 @@ def iniciar_fluxo_via_planilha(nome, telefone):
 
 @app.route("/logs")
 def visualizar_logs():
-    """Exibe logs a partir da aba LOGS (Google Sheets)."""
-    try:
-        ensure_logs_worksheet()
-        from google_sheets_old import abrir_aba, LOGS_SHEET_NAME
-        ws_logs = abrir_aba(LOGS_SHEET_NAME)
-        logs_rows = ws_logs.get_all_records()
-    except Exception as e:
-        print("[ERRO AO LER LOGS DO SHEETS]", e)
-        logs_rows = []
-
-    logs = []
-    for r in logs_rows:
-        logs.append({
-            "lead": (r.get("TELEFONE") or "").strip(),
-            "body": (r.get("BODY") or "").strip(),
-            "stage": (r.get("STAGE") or "").strip(),
-            "direction": (r.get("DIRECTION") or "").strip(),
-            "time": (r.get("TIMESTAMP") or "").strip()
-        })
-
-    # mais recentes primeiro
-    logs.reverse()
-
-    return render_template("logs.html", logs=logs)
+    if not os.path.exists("logs.json"):
+        logs = []
+    else:
+        logs = []
+        if os.path.exists("logs.json") and os.path.getsize("logs.json") > 0:
+            try:
+                with open("logs.json", "r", encoding="utf-8") as f:
+                    logs = json.load(f)
+            except json.JSONDecodeError:
+                print("[ERRO] logs.json corrompido. Reinicializando.")
+                logs = []
 
 
+    for l in logs:
+        l["time"] = datetime.fromtimestamp(l["timestamp"]).strftime("%d/%m/%Y %H:%M:%S")
+
+    return render_template("logs.html", logs=logs[::-1])
 
 
 @app.route("/dashboard")
 def dashboard():
-    try:
-        ws = abrir_planilha()
-        rows = ws.get_all_records()
-    except Exception as e:
-        print("[ERRO AO LER DASHBOARD DO SHEETS]", e)
-        rows = []
+    # Carrega logs
+    if not os.path.exists("logs.json"):
+        logs = []
+    else:
+        with open("logs.json", "r", encoding="utf-8") as f:
+            logs = json.load(f)
 
     agora = datetime.now()
     hoje = agora.date()
     mes_atual = agora.month
     ano_atual = agora.year
 
-    total = 0
-    leads_dia = 0
-    leads_mes = 0
+    leads_dia = set()
+    leads_mes = set()
+    leads_total = set()
 
-    etapas_contagem = {}
+    etapas_final = {}       # guarda a última etapa de cada lead
+    etapas_contagem = {}    # conta quantos leads terminaram em cada etapa
 
-    for r in rows:
-        telefone = (r.get("TELEFONE") or r.get("Telefone") or "").strip()
-        if not telefone:
+    for log in logs:
+        lead = log.get("lead")
+        if not lead:
             continue
-        total += 1
 
-        stage = (r.get("STAGE") or "start").strip().lower()
-        etapas_contagem[stage] = etapas_contagem.get(stage, 0) + 1
+        etapa = log.get("stage", "desconhecido")
+        timestamp = log.get("timestamp", 0)
 
-        # usa UPDATED_AT se existir; senão tenta LAST_OUTBOUND_AT
-        dt_str = (r.get("UPDATED_AT") or r.get("LAST_OUTBOUND_AT") or r.get("Last_Outbound_At") or "").strip()
-        dt = None
-        if dt_str:
-            for fmt in ("%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S"):
-                try:
-                    dt = datetime.strptime(dt_str, fmt)
-                    break
-                except:
-                    continue
+        dt = datetime.fromtimestamp(timestamp)
+        leads_total.add(lead)
 
-        if dt:
-            if dt.date() == hoje:
-                leads_dia += 1
-            if dt.year == ano_atual and dt.month == mes_atual:
-                leads_mes += 1
+        if dt.date() == hoje:
+            leads_dia.add(lead)
 
-    # conversão simples: quantos em "checkout_enviado" e "comprou"
-    checkout = etapas_contagem.get("checkout_enviado", 0)
-    comprou = etapas_contagem.get("comprou", 0)
+        if dt.year == ano_atual and dt.month == mes_atual:
+            leads_mes.add(lead)
+
+        # registra última etapa do lead
+        etapas_final[lead] = etapa
+
+    # contabiliza as etapas
+    for etapa in etapas_final.values():
+        etapas_contagem[etapa] = etapas_contagem.get(etapa, 0) + 1
+
+    # total de leads
+    total = len(leads_total)
+
+    def conv(etapa):
+        return round((etapas_contagem.get(etapa, 0) / total * 100), 1) if total else 0
 
     conversao = {
-        "checkout_enviado": checkout,
-        "comprou": comprou
+        "para_start": conv("start"),
+        "para_nutricao": conv("nutricao"),
+        "para_case": conv("case"),
+        "para_projecao": conv("projecao"),
+        "para_checkout": conv("checkout"),
+        "para_comprou": conv("comprou")    # <-- AGORA FUNCIONANDO
     }
 
     metrics = {
-        "total": total,
-        "leads_dia": leads_dia,
-        "leads_mes": leads_mes,
+        "dia": len(leads_dia),
+        "mes": len(leads_mes),
+        "total": len(leads_total),
+        "etapas": etapas_contagem,
         "etapas_nomes": list(etapas_contagem.keys()),
         "etapas_valores": list(etapas_contagem.values())
     }
@@ -820,51 +781,47 @@ def dashboard():
     )
 
 
-
-
 @app.template_filter('datetimeformat')
 def datetimeformat(value):
     return datetime.fromtimestamp(value).strftime("%d/%m/%Y %H:%M")
 
 @app.route("/lead/<id>")
 def lead_view(id):
-    """Página antiga de lead: agora usa LOGS do Sheets."""
-    try:
-        ensure_logs_worksheet()
-        from google_sheets_old import abrir_aba, LOGS_SHEET_NAME
-        ws_logs = abrir_aba(LOGS_SHEET_NAME)
-        logs_rows = ws_logs.get_all_records()
-    except Exception as e:
-        print("[ERRO AO LER LOGS NO LEAD_VIEW]", e)
-        logs_rows = []
+    if not os.path.exists("logs.json"):
+        return "Sem logs ainda."
 
-    conversa = []
-    for r in logs_rows:
-        tel = (r.get("TELEFONE") or "").strip()
-        if tel != id:
-            continue
-        conversa.append({
-            "lead": tel,
-            "body": (r.get("BODY") or "").strip(),
-            "stage": (r.get("STAGE") or "").strip(),
-            "direction": (r.get("DIRECTION") or "").strip(),
-            "time": (r.get("TIMESTAMP") or "").strip(),
-            "timestamp": 0
-        })
+    with open("logs.json", "r", encoding="utf-8") as f:
+        logs = json.load(f)
 
-    return render_template("lead.html", lead=id, logs=conversa)
+    conversa = [l for l in logs if l["lead"] == id]
 
+    conversa_sorted = sorted(conversa, key=lambda x: x["timestamp"])
 
+    return render_template("lead.html", lead=id, logs=conversa_sorted)
 
 from flask import redirect, url_for
 
 @app.route("/delete-lead/<numero>", methods=["POST"])
 def delete_lead(numero):
-    try:
-        delete_lead_and_logs(numero)
-    except Exception as e:
-        print("[ERRO AO EXCLUIR NO SHEETS]", e)
 
+    # 1 — Remover da memória
+    if numero in lead_status:
+        del lead_status[numero]
+
+    # 2 — Remover do logs.json
+    try:
+        if os.path.exists("logs.json"):
+            with open("logs.json", "r", encoding="utf-8") as f:
+                logs = json.load(f)
+
+            logs = [l for l in logs if l.get("lead") != numero]
+
+            with open("logs.json", "w", encoding="utf-8") as f:
+                json.dump(logs, f, indent=4, ensure_ascii=False)
+    except:
+        pass
+
+    # 3 — Redireciona PARA /leads com parâmetro de confirmação
     return redirect(url_for("leads_page", deleted="ok"))
 
 @app.route("/click-checkout")
@@ -889,22 +846,36 @@ def click_checkout():
 
 @app.route("/marcar-comprou/<numero>", methods=["POST"])
 def marcar_comprou(numero):
-    try:
-        # atualiza na Página1
-        ws = abrir_planilha()
-        row_idx, headers_l, _ = get_or_create_lead_row(ws, numero)
-        update_lead_fields(ws, row_idx, headers_l, stage="comprou")
 
-        # loga na LOGS
-        salvar_log(
-            number=numero,
-            body="Lead marcado como COMPROU manualmente",
-            stage="comprou",
-            direction="system"
-        )
-    except Exception as e:
-        print("[ERRO AO MARCAR COMPROU NO SHEETS]", e)
+    # Atualiza lead_status em memória (opcional)
+    if numero in lead_status:
+        lead_status[numero]["stage"] = "comprou"
+        lead_status[numero]["last_message"] = "Comprou manualmente"
 
+    # Carrega logs
+    if os.path.exists("logs.json"):
+        try:
+            with open("logs.json", "r", encoding="utf-8") as f:
+                logs = json.load(f)
+        except:
+            logs = []
+    else:
+        logs = []
+
+    # Adiciona novo registro
+    logs.append({
+        "timestamp": time.time(),
+        "lead": numero,
+        "direction": "system",
+        "body": "Lead marcado como COMPROU manualmente",
+        "stage": "comprou"
+    })
+
+    # Salva de volta
+    with open("logs.json", "w", encoding="utf-8") as f:
+        json.dump(logs, f, indent=4, ensure_ascii=False)
+
+    # Volta à página de leads com mensagem
     return redirect(url_for("leads_page", comprado="ok"))
 
 
