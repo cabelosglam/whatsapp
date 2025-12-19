@@ -56,6 +56,10 @@ def normalize_phone_digits(phone: str) -> str:
     """Retorna apenas dígitos; aplica regra Brasil."""
     digits = "".join(filter(str.isdigit, safe_str(phone)))
 
+    # BR: se veio sem o 9 (55 + DDD + 8 dígitos = 12), insere "9" após o DDD
+    if len(digits) == 12 and digits.startswith("55"):
+        digits = digits[:4] + "9" + digits[4:]
+
     # 10 ou 11 dígitos (DDD + número) -> prefixa 55
     if len(digits) in (10, 11):
         return "55" + digits
@@ -222,6 +226,82 @@ def respondeu_nao(body):
     ]
     return body in negativas or body.startswith("n")
 
+
+# -------------------------------------------------------------
+#  PROCESSAR NOVO LEAD (para o Heroku Scheduler / sheet_checker.py)
+# -------------------------------------------------------------
+def processar_novo_lead_sheet(nome: str, telefone: str, email: str = ""):
+    """
+    Função chamada pelo sheet_checker.py.
+    - Envia o primeiro template para o lead
+    - Marca a coluna ENVIADO na Página1
+    - Atualiza colunas de tracking (STAGE, UPDATED_AT, LAST_*)
+    - Registra na aba LOGS
+    """
+    nome = safe_str(nome) or "profissional"
+    wpp = normalize_to_wpp(telefone)
+    if not wpp:
+        print("[SCHEDULER] Telefone inválido:", telefone)
+        return False
+
+    template_sid = "HX3a3278be375c5f6368dc282229dfdd89"  # seu template inicial
+    vars_json = json.dumps({"nome": nome})
+
+    try:
+        msg = client.messages.create(
+            from_=FROM_WPP,
+            to=wpp,
+            content_sid=template_sid,
+            content_variables=vars_json
+        )
+
+        # garante/atualiza linha do lead e marca ENVIADO
+        try:
+            ws = abrir_planilha()
+            row_idx, headers_l, _ = get_or_create_lead_row(ws, wpp, nome_padrao=nome)
+            update_lead_fields(
+                ws,
+                row_idx,
+                headers_l,
+                enviado=f"ENVIADO {now_str()}",
+                stage="start",
+                last_template_sid=template_sid,
+                last_outbound_at=now_str(),
+                last_message_sid=getattr(msg, "sid", ""),
+                last_outbound="(start) template enviado",
+            )
+        except Exception as e:
+            print("[SCHEDULER] Falha ao atualizar lead no Sheets:", e)
+
+        # memória local (curta)
+        lead_status[wpp] = {
+            "timestamp": time.time(),
+            "answered": False,
+            "reminder_sent": False,
+            "stage": "start",
+            "nome": nome
+        }
+
+        # log persistente (LOGS + update Page1)
+        salvar_log(
+            number_wpp=wpp,
+            body="(start) template enviado",
+            stage="start",
+            direction="outbound",
+            message_sid=getattr(msg, "sid", ""),
+            template_sid=template_sid
+        )
+
+        # follow-up
+        threading.Thread(target=enviar_followup, args=(wpp,), daemon=True).start()
+
+        print("[SCHEDULER] Envio OK para", wpp)
+        return True
+
+    except Exception as e:
+        print("[SCHEDULER] Erro ao enviar template:", e)
+        return False
+
 # -------------------------------------------------------------
 #  ROTA: HOME / FORM
 # -------------------------------------------------------------
@@ -350,7 +430,7 @@ def enviar():
         try:
             ws = abrir_planilha()
             row_idx, headers_l, _ = get_or_create_lead_row(ws, wpp, nome_padrao=nome or "profissional")
-            update_lead_fields(ws, row_idx, headers_l, stage="start")
+            update_lead_fields(ws, row_idx, headers_l, enviado=f"ENVIADO {now_str()}", stage="start")
         except Exception as e:
             print("[WARN] Falha ao criar/atualizar lead no Sheets (manual):", e)
 
@@ -419,8 +499,12 @@ def webhook():
     # garante lead no Sheets
     try:
         ws = abrir_planilha()
-        row_idx, headers_l, _ = get_or_create_lead_row(ws, from_number, nome_padrao=lead["nome"])
-        # mantém stage atual no Sheets, se ainda não tiver
+        row_idx, headers_l, data = get_or_create_lead_row(ws, from_number, nome_padrao=lead["nome"])
+        # Se já existe nome na planilha, use ele (evita "profissional" sobrescrever/duplicar)
+        nome_sheet = (data or {}).get("nome") or (data or {}).get("Nome") or ""
+        if nome_sheet and lead.get("nome") in ("", "profissional"):
+            lead["nome"] = nome_sheet
+        # mantém stage atual no Sheets
         update_lead_fields(ws, row_idx, headers_l, stage=lead.get("stage", "start"))
     except Exception as e:
         print("[WARN] Falha ao garantir lead no Sheets (webhook):", e)
@@ -656,14 +740,6 @@ def visualizar_logs():
 # -------------------------------------------------------------
 @app.route("/dashboard")
 def dashboard():
-    """
-    Dashboard é calculado a partir da planilha (Página1).
-    O template espera:
-      metrics.dia, metrics.mes, metrics.total, metrics.etapas (dict),
-      metrics.etapas_nomes, metrics.etapas_valores
-    e
-      conversao.para_start, para_nutricao, para_case, para_projecao, para_checkout, para_comprou
-    """
     try:
         ws = abrir_planilha()
         rows = ws.get_all_records()
@@ -679,34 +755,27 @@ def dashboard():
     total = 0
     leads_dia = 0
     leads_mes = 0
-
     etapas_contagem = {}
 
-    def _parse_dt(dt_str: str):
-        dt_str = safe_str(dt_str or "").strip()
-        if not dt_str:
-            return None
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
-            try:
-                return datetime.strptime(dt_str, fmt)
-            except Exception:
-                pass
-        return None
-
     for r in rows:
-        telefone_wpp = normalize_to_wpp(r.get("TELEFONE") or r.get("Telefone") or r.get("telefone") or "")
+        telefone_wpp = normalize_to_wpp(r.get("TELEFONE") or r.get("Telefone") or "")
         if not telefone_wpp:
             continue
 
         total += 1
 
-        stage = safe_str(r.get("STAGE") or "start").lower().strip() or "start"
+        stage = safe_str(r.get("STAGE") or "start").lower() or "start"
         etapas_contagem[stage] = etapas_contagem.get(stage, 0) + 1
 
-        # Data de referência: UPDATED_AT (preferencial), depois LAST_OUTBOUND_AT, depois Data
-        dt = _parse_dt(r.get("UPDATED_AT") or "") \
-             or _parse_dt(r.get("LAST_OUTBOUND_AT") or "") \
-             or _parse_dt(r.get("Data") or r.get("DATA") or "")
+        dt_str = safe_str(r.get("UPDATED_AT") or r.get("LAST_OUTBOUND_AT") or "")
+        dt = None
+        if dt_str:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S"):
+                try:
+                    dt = datetime.strptime(dt_str, fmt)
+                    break
+                except Exception:
+                    continue
 
         if dt:
             if dt.date() == hoje:
@@ -714,35 +783,17 @@ def dashboard():
             if dt.year == ano_atual and dt.month == mes_atual:
                 leads_mes += 1
 
-    # Ordena etapas em uma ordem “de funil” para ficar bonito no dashboard
-    ordem = ["start", "nutricao", "case", "projecao", "checkout", "comprou", "end"]
-    etapas_ordenadas = {k: etapas_contagem.get(k, 0) for k in ordem if k in etapas_contagem}
-    # inclui quaisquer outras etapas que existirem
-    for k, v in etapas_contagem.items():
-        if k not in etapas_ordenadas:
-            etapas_ordenadas[k] = v
+    checkout = etapas_contagem.get("checkout_enviado", 0)
+    comprou = etapas_contagem.get("comprou", 0)
 
-    def pct(stage_name: str) -> float:
-        if total <= 0:
-            return 0.0
-        return round((etapas_contagem.get(stage_name, 0) / total) * 100, 1)
-
-    conversao = {
-        "para_start": pct("start"),
-        "para_nutricao": pct("nutricao"),
-        "para_case": pct("case"),
-        "para_projecao": pct("projecao"),
-        "para_checkout": pct("checkout"),
-        "para_comprou": pct("comprou"),
-    }
+    conversao = {"checkout_enviado": checkout, "comprou": comprou}
 
     metrics = {
-        "dia": leads_dia,
-        "mes": leads_mes,
         "total": total,
-        "etapas": etapas_ordenadas,
-        "etapas_nomes": list(etapas_ordenadas.keys()),
-        "etapas_valores": list(etapas_ordenadas.values()),
+        "leads_dia": leads_dia,
+        "leads_mes": leads_mes,
+        "etapas_nomes": list(etapas_contagem.keys()),
+        "etapas_valores": list(etapas_contagem.values())
     }
 
     return render_template("dashboard.html", metrics=metrics, conversao=conversao)
@@ -796,3 +847,6 @@ def click_checkout():
             print("[WARN] Falha ao atualizar stage checkout_visit:", e)
 
     return redirect("https://pay.hotmart.com/L102207547C")
+
+
+
