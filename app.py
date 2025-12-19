@@ -419,8 +419,12 @@ def webhook():
     # garante lead no Sheets
     try:
         ws = abrir_planilha()
-        row_idx, headers_l, _ = get_or_create_lead_row(ws, from_number, nome_padrao=lead["nome"])
-        # mantém stage atual no Sheets, se ainda não tiver
+                row_idx, headers_l, data = get_or_create_lead_row(ws, from_number, nome_padrao=lead["nome"])
+        # Se já existe nome na planilha, use ele (evita "profissional" sobrescrever/duplicar)
+        nome_sheet = (data or {}).get("nome") or (data or {}).get("Nome") or ""
+        if nome_sheet and lead.get("nome") in ("", "profissional"):
+            lead["nome"] = nome_sheet
+        # mantém stage atual no Sheets
         update_lead_fields(ws, row_idx, headers_l, stage=lead.get("stage", "start"))
     except Exception as e:
         print("[WARN] Falha ao garantir lead no Sheets (webhook):", e)
@@ -763,3 +767,54 @@ def click_checkout():
             print("[WARN] Falha ao atualizar stage checkout_visit:", e)
 
     return redirect("https://pay.hotmart.com/L102207547C")
+
+@app.route("/marcar-comprou/<numero>", methods=["POST"])
+def marcar_comprou(numero):
+
+    # Atualiza lead_status em memória (opcional)
+    if numero in lead_status:
+        lead_status[numero]["stage"] = "comprou"
+        lead_status[numero]["last_message"] = "Comprou manualmente"
+
+    # Carrega logs
+    if os.path.exists("logs.json"):
+        try:
+            with open("logs.json", "r", encoding="utf-8") as f:
+                logs = json.load(f)
+        except:
+            logs = []
+    else:
+        logs = []
+
+    # Adiciona novo registro
+    logs.append({
+        "timestamp": time.time(),
+        "lead": numero,
+        "direction": "system",
+        "body": "Lead marcado como COMPROU manualmente",
+        "stage": "comprou"
+    })
+
+    # Salva de volta
+    with open("logs.json", "w", encoding="utf-8") as f:
+        json.dump(logs, f, indent=4, ensure_ascii=False)
+
+    # Volta à página de leads com mensagem
+    return redirect(url_for("leads_page", comprado="ok"))
+
+
+
+# -------------------------------------------------------------
+# INICIAR SERVIDOR
+# -------------------------------------------------------------
+#if __name__ == "__main__":
+    # Iniciar monitoramento do Google Sheets em thread paralela
+    # FEATURE DESATIVADA NO HEROKU
+    # threading.Thread(
+    #     target=monitorar_novos_leads,
+    #     args=(processar_novo_lead_sheet,),
+    #     daemon=True
+    # ).start()
+
+    #print("[INFO] Monitoramento Google Sheets iniciado.")
+    #app.run(debug=True)     
