@@ -768,53 +768,5 @@ def click_checkout():
 
     return redirect("https://pay.hotmart.com/L102207547C")
 
-@app.route("/marcar-comprou/<numero>", methods=["POST"])
-def marcar_comprou(numero):
-
-    # Atualiza lead_status em memória (opcional)
-    if numero in lead_status:
-        lead_status[numero]["stage"] = "comprou"
-        lead_status[numero]["last_message"] = "Comprou manualmente"
-
-    # Carrega logs
-    if os.path.exists("logs.json"):
-        try:
-            with open("logs.json", "r", encoding="utf-8") as f:
-                logs = json.load(f)
-        except:
-            logs = []
-    else:
-        logs = []
-
-    # Adiciona novo registro
-    logs.append({
-        "timestamp": time.time(),
-        "lead": numero,
-        "direction": "system",
-        "body": "Lead marcado como COMPROU manualmente",
-        "stage": "comprou"
-    })
-
-    # Salva de volta
-    with open("logs.json", "w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=4, ensure_ascii=False)
-
-    # Volta à página de leads com mensagem
-    return redirect(url_for("leads_page", comprado="ok"))
 
 
-
-# -------------------------------------------------------------
-# INICIAR SERVIDOR
-# -------------------------------------------------------------
-#if __name__ == "__main__":
-    # Iniciar monitoramento do Google Sheets em thread paralela
-    # FEATURE DESATIVADA NO HEROKU
-    # threading.Thread(
-    #     target=monitorar_novos_leads,
-    #     args=(processar_novo_lead_sheet,),
-    #     daemon=True
-    # ).start()
-
-    #print("[INFO] Monitoramento Google Sheets iniciado.")
-    #app.run(debug=True)     
