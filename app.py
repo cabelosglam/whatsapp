@@ -15,6 +15,21 @@ import time
 # -------------------------------------------------------------
 load_dotenv()
 
+# -------------------------------------------------------------
+#  GOOGLE SHEETS como BANCO (Página1 + LOGS)
+# -------------------------------------------------------------
+from google_sheets import (
+    abrir_planilha,
+    append_log_row,
+    get_or_create_lead_row,
+    update_lead_fields,
+    delete_lead_and_logs,
+    get_records,
+    LOGS_SHEET_NAME,
+    SHEET_NAME,
+)
+
+
 app = Flask(__name__)
 
 ACCOUNT_SID = os.getenv("ACCOUNT_SID")
@@ -292,7 +307,6 @@ def conversa_individual(numero):
     mensagens = []
     try:
         ensure_logs_worksheet()
-        from google_sheets_old import abrir_aba, LOGS_SHEET_NAME
         ws_logs = abrir_aba(LOGS_SHEET_NAME)
         logs = ws_logs.get_all_records()
     except Exception as e:
@@ -725,7 +739,6 @@ def visualizar_logs():
     """Exibe logs a partir da aba LOGS (Google Sheets)."""
     try:
         ensure_logs_worksheet()
-        from google_sheets_old import abrir_aba, LOGS_SHEET_NAME
         ws_logs = abrir_aba(LOGS_SHEET_NAME)
         logs_rows = ws_logs.get_all_records()
     except Exception as e:
@@ -831,7 +844,6 @@ def lead_view(id):
     """Página antiga de lead: agora usa LOGS do Sheets."""
     try:
         ensure_logs_worksheet()
-        from google_sheets_old import abrir_aba, LOGS_SHEET_NAME
         ws_logs = abrir_aba(LOGS_SHEET_NAME)
         logs_rows = ws_logs.get_all_records()
     except Exception as e:
