@@ -419,7 +419,7 @@ def webhook():
     # garante lead no Sheets
     try:
         ws = abrir_planilha()
-                row_idx, headers_l, data = get_or_create_lead_row(ws, from_number, nome_padrao=lead["nome"])
+        row_idx, headers_l, data = get_or_create_lead_row(ws, from_number, nome_padrao=lead["nome"])
         # Se já existe nome na planilha, use ele (evita "profissional" sobrescrever/duplicar)
         nome_sheet = (data or {}).get("nome") or (data or {}).get("Nome") or ""
         if nome_sheet and lead.get("nome") in ("", "profissional"):
